@@ -1,16 +1,44 @@
-# React + Vite
+# Tang Poetry Nebula Visualization
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+3D visualization of Tang Dynasty poetry imagery using Three.js and React.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Three.js 3D Visualization**: Interactive 3D nebula displaying Tang poetry imagery
+- **50+ Core Imagery Nodes**: Visualize key poetic images from Tang Dynasty poems
+- **Emotional Color Coding**:
+  - 思乡 (Nostalgia) - Blue
+  - 离别 (Farewell) - Gold
+  - 秋思 (Autumn Reflection) - Purple
+  - 豪放 (Bold) - Red
+  - 清雅 (Elegant) - Teal
+- **Interactive Nodes**: Click to view related poems
+- **Two-layer Structure**: Core images + specific images (e.g., "月" → "明月/残月/秋月")
+- **AdditiveBlending Glow Effect**: Star-like glowing nodes
+- **OrbitControls**: Rotate (middle mouse), pan (right mouse), zoom (scroll)
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React 19
+- Three.js
+- Vite
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+npm install
+npm run dev
+```
+
+## Controls
+
+- **Left Click**: Select node
+- **Middle Click**: Rotate view
+- **Right Click**: Pan view
+- **Scroll**: Zoom
+
+## Data
+
+- 100 Tang Dynasty poems
+- 50 core imagery categories
+- 200+ specific imagery mappings
