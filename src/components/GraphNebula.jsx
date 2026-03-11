@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import poems from '../data/poems.json';
 import { calculateCooccurrence, extractImages, getRelatedPoems } from '../utils/imageExtractor';
+import { IMAGE_DICTIONARY } from '../data/imageDictionary';
 import { generateNebulaData } from '../utils/nebulaGenerator';
 import { CORE_IMAGES } from '../data/coreImages';
 
@@ -24,23 +25,24 @@ const GraphNebula = ({ onNodeClick }) => {
   // 提取具体意象数据
   const specificImagesData = useMemo(() => {
     const data = {};
-    const extractedData = {};
 
     for (const poem of poems) {
       const result = extractImages(poem);
-      extractedData[poem.id] = result;
 
-      // 按核心意象分组具体意象
+      // 按核心意象分组具体意象 - 需要正确建立映射关系
+      // 从 IMAGE_DICTIONARY 获取每个具体意象对应的核心意象
       for (const specificImage of result.specificImages) {
-        for (const coreImage of result.coreImages) {
-          if (!data[coreImage]) {
-            data[coreImage] = {};
-          }
-          if (!data[coreImage][specificImage]) {
-            data[coreImage][specificImage] = new Set();
-          }
-          data[coreImage][specificImage].add(poem.id);
+        // 使用 IMAGE_DICTIONARY 获取正确的核心意象映射
+        const coreImage = IMAGE_DICTIONARY[specificImage];
+        if (!coreImage) continue;
+
+        if (!data[coreImage]) {
+          data[coreImage] = {};
         }
+        if (!data[coreImage][specificImage]) {
+          data[coreImage][specificImage] = new Set();
+        }
+        data[coreImage][specificImage].add(poem.id);
       }
     }
 
@@ -85,83 +87,54 @@ const GraphNebula = ({ onNodeClick }) => {
     };
   }, []);
 
-  // 展开/收起细节层
+  // 展开/收起细节层 - 切换激活状态
   const toggleDetailLayer = useCallback((coreNode) => {
-    const scene = sceneRef.current;
-    if (!scene) return;
-
-    // 如果已经展开，先收起
-    if (detailNodesRef.current.length > 0) {
-      detailNodesRef.current.forEach(mesh => scene.remove(mesh));
-      detailLinksRef.current.forEach(line => scene.remove(line));
-      detailNodesRef.current = [];
-      detailLinksRef.current = [];
-
-      if (expandedCore === coreNode.userData.id) {
-        setExpandedCore(null);
-        return;
-      }
-    }
-
-    // 获取该核心意象的具体意象
     const coreId = coreNode.userData.id;
-    const specifics = specificImagesData[coreId];
-    if (!specifics || specifics.length === 0) return;
 
-    // 在核心节点周围创建细节节点
-    const parentPos = coreNode.position;
-    const detailNodes = [];
-    const count = Math.min(specifics.length, 10); // 最多显示10个
-
-    const baseColor = coreNode.userData.color;
-
-    for (let i = 0; i < count; i++) {
-      const specific = specifics[i];
-      const theta = (i / count) * Math.PI * 2;
-      const phi = Math.random() * Math.PI;
-      const radius = 40 + Math.random() * 20;
-
-      const x = parentPos.x + radius * Math.sin(phi) * Math.cos(theta);
-      const y = parentPos.y + radius * Math.sin(phi) * Math.sin(theta);
-      const z = parentPos.z + radius * Math.cos(phi);
-
-      const geometry = new THREE.SphereGeometry(3, 16, 16);
-      const material = new THREE.MeshStandardMaterial({
-        color: baseColor,
-        emissive: baseColor,
-        emissiveIntensity: 0.3,
-        transparent: true,
-        opacity: 0.8,
-      });
-
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(x, y, z);
-      mesh.userData = {
-        name: specific.name,
-        count: specific.count,
-        isDetail: true,
-        parentCore: coreId,
-      };
-
-      scene.add(mesh);
-      detailNodes.push(mesh);
-
-      // 创建到核心节点的连线
-      const points = [parentPos.clone(), new THREE.Vector3(x, y, z)];
-      const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
-      const lineMat = new THREE.LineBasicMaterial({
-        color: baseColor,
-        transparent: true,
-        opacity: 0.4,
-      });
-      const line = new THREE.Line(lineGeo, lineMat);
-      scene.add(line);
-      detailLinksRef.current.push(line);
+    // 如果已经展开的是同一个，收起（恢复低亮度+隐藏连线）
+    if (expandedCore === coreId) {
+      detailNodesRef.current
+        .filter(node => node.userData.parentCore === coreId)
+        .forEach(node => {
+          node.material.opacity = node.userData.originalOpacity; // 恢复低亮度
+        });
+      detailLinksRef.current
+        .filter(line => line.userData?.parentCore === coreId)
+        .forEach(line => {
+          line.visible = false; // 隐藏连线
+        });
+      setExpandedCore(null);
+      return;
     }
 
-    detailNodesRef.current = detailNodes;
+    // 如果已经有展开的，先恢复之前的
+    if (expandedCore) {
+      detailNodesRef.current
+        .filter(node => node.userData.parentCore === expandedCore)
+        .forEach(node => {
+          node.material.opacity = node.userData.originalOpacity;
+        });
+      detailLinksRef.current
+        .filter(line => line.userData?.parentCore === expandedCore)
+        .forEach(line => {
+          line.visible = false;
+        });
+    }
+
+    // 激活当前核心节点的细节节点（高亮发光+显示连线）
+    detailNodesRef.current
+      .filter(node => node.userData.parentCore === coreId)
+      .forEach(node => {
+        node.material.opacity = 0.8; // 高亮发光
+      });
+    detailLinksRef.current
+      .filter(line => line.userData?.parentCore === coreId)
+      .forEach(line => {
+        line.visible = true; // 显示连线
+      });
+
     setExpandedCore(coreId);
-  }, [expandedCore, specificImagesData]);
+  }, [expandedCore]);
 
   // 初始化Three.js
   useEffect(() => {
@@ -207,6 +180,7 @@ const GraphNebula = ({ onNodeClick }) => {
     // 中键缩放
     controls.enableZoom = true;
     controls.zoomSpeed = 1.2;
+    controls.zoomToCursor = true; // 朝着鼠标位置缩放
 
     // 启用中键的旋转功能（默认中键是缩放）
     controls.enableRotate = true;
@@ -317,7 +291,75 @@ const GraphNebula = ({ onNodeClick }) => {
     });
     nodesRef.current = nodes;
 
-    // 7. 创建连线 - 简单的直线，更干净
+    // 7. 为每个核心节点创建细节节点（小星星，初始淡色）
+    const detailNodes = [];
+    const detailLinks = [];
+
+    nodes.forEach(coreNode => {
+      const coreId = coreNode.userData.id;
+      const specifics = specificImagesData[coreId];
+      if (!specifics || specifics.length === 0) return;
+
+      const parentPos = coreNode.position;
+      const baseColor = coreNode.userData.color;
+      const count = Math.min(specifics.length, 10);
+
+      for (let i = 0; i < count; i++) {
+        const specific = specifics[i];
+        const theta = (i / count) * Math.PI * 2;
+        const phi = Math.acos(1 - 2 * (i + 0.5) / count);
+        const radius = 15;
+
+        const x = parentPos.x + radius * Math.sin(phi) * Math.cos(theta);
+        const y = parentPos.y + radius * Math.sin(phi) * Math.sin(theta);
+        const z = parentPos.z + radius * Math.cos(phi);
+
+        // 小星星节点 - 与核心节点一样的发光效果，但更小更暗
+        const detailTexture = createStarTexture(baseColor, 64);
+        const spriteMaterial = new THREE.SpriteMaterial({
+          map: detailTexture,
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.3, // 初始更暗
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+        const sprite = new THREE.Sprite(spriteMaterial);
+        sprite.scale.set(8, 8, 1); // 比核心节点小
+        sprite.position.set(x, y, z);
+        sprite.userData = {
+          name: specific.name,
+          count: specific.count,
+          isDetail: true,
+          parentCore: coreId,
+          baseColor: baseColor,
+          originalOpacity: 0.3,
+        };
+        sprite.visible = true;
+        scene.add(sprite);
+        detailNodes.push(sprite);
+
+        // 连线 - 初始隐藏
+        const points = [parentPos.clone(), new THREE.Vector3(x, y, z)];
+        const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+        const lineMat = new THREE.LineBasicMaterial({
+          color: baseColor,
+          transparent: true,
+          opacity: 0.2,
+        });
+        const line = new THREE.Line(lineGeo, lineMat);
+        line.userData = { parentCore: coreId };
+        line.visible = false; // 初始隐藏
+
+        scene.add(line);
+        detailLinks.push(line);
+      }
+    });
+
+    detailNodesRef.current = detailNodes;
+    detailLinksRef.current = detailLinks;
+
+    // 8. 创建连线 - 简单的直线，更干净
     const links = [];
     const linkMaterial = new THREE.LineBasicMaterial({
       color: 0xffffff,
@@ -404,14 +446,23 @@ const GraphNebula = ({ onNodeClick }) => {
 
     // 获取所有mesh用于检测
     const allMeshes = [];
-    nodes.forEach(group => {
-      group.traverse(child => {
-        if (child.isMesh) {
-          child.parentNode = group;
-          allMeshes.push(child);
-        }
-      });
+    nodes.forEach(node => {
+      // 处理核心节点（Group）
+      if (node.traverse) {
+        node.traverse(child => {
+          if (child.isMesh) {
+            child.parentNode = node;
+            allMeshes.push(child);
+          }
+        });
+      }
+      // 处理细节节点（直接是Mesh）
+      else if (node.isMesh) {
+        node.parentNode = node;
+        allMeshes.push(node);
+      }
     });
+
     const intersects = raycasterRef.current.intersectObjects(allMeshes);
     const hoveredGroup = intersects.length > 0 ? intersects[0].object.parentNode : null;
 
@@ -444,13 +495,21 @@ const GraphNebula = ({ onNodeClick }) => {
 
     // 获取所有mesh用于检测
     const allMeshes = [];
-    nodes.forEach(group => {
-      group.traverse(child => {
-        if (child.isMesh) {
-          child.parentNode = group;
-          allMeshes.push(child);
-        }
-      });
+    nodes.forEach(node => {
+      // 处理核心节点（Group）
+      if (node.traverse) {
+        node.traverse(child => {
+          if (child.isMesh) {
+            child.parentNode = node;
+            allMeshes.push(child);
+          }
+        });
+      }
+      // 处理细节节点（直接是Mesh）
+      else if (node.isMesh) {
+        node.parentNode = node;
+        allMeshes.push(node);
+      }
     });
     const intersects = raycasterRef.current.intersectObjects(allMeshes);
     const clickedGroup = intersects.length > 0 ? intersects[0].object.parentNode : null;
