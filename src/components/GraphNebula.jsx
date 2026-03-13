@@ -7,7 +7,7 @@ import { IMAGE_DICTIONARY } from '../data/imageDictionary';
 import { generateNebulaData } from '../utils/nebulaGenerator';
 import { CORE_IMAGES } from '../data/coreImages';
 
-const GraphNebula = ({ onNodeClick }) => {
+const GraphNebula = ({ onNodeClick, onLineClick }) => {
   const canvasRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
@@ -21,6 +21,7 @@ const GraphNebula = ({ onNodeClick }) => {
   const [expandedCore, setExpandedCore] = useState(null);
   const detailNodesRef = useRef([]);
   const detailLinksRef = useRef([]);
+  const nebulaCloudsRef = useRef([]);
 
   // 提取具体意象数据
   const specificImagesData = useMemo(() => {
@@ -359,33 +360,177 @@ const GraphNebula = ({ onNodeClick }) => {
     detailNodesRef.current = detailNodes;
     detailLinksRef.current = detailLinks;
 
-    // 8. 创建连线 - 简单的直线，更干净
+    // 8. 创建连线 - 曲线表示，粗细由透明度体现
     const links = [];
-    const linkMaterial = new THREE.LineBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.1,
-    });
+    const linksData = []; // 存储连线数据用于交互
+
+    // 计算最大强度用于归一化
+    const maxStrength = Math.max(...graphData.links.map(l => l.strength), 1);
 
     graphData.links.forEach((linkData) => {
       const sourceNode = nodes.find(n => n.userData.id === linkData.source);
       const targetNode = nodes.find(n => n.userData.id === linkData.target);
 
       if (sourceNode && targetNode) {
-        const points = [
-          sourceNode.position.clone(),
-          targetNode.position.clone(),
-        ];
+        const start = sourceNode.position.clone();
+        const end = targetNode.position.clone();
+
+        // 计算中点，并添加偏移创建曲线效果
+        const mid = start.clone().add(end).multiplyScalar(0.5);
+        // 随机或基于类别差异添加偏移
+        const offsetDir = new THREE.Vector3(
+          (Math.random() - 0.5) * 30,
+          (Math.random() - 0.5) * 30,
+          (Math.random() - 0.5) * 30
+        );
+        mid.add(offsetDir);
+
+        // 创建二次贝塞尔曲线
+        const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+        const points = curve.getPoints(20);
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const line = new THREE.Line(geometry, linkMaterial);
-        line.userData = { source: linkData.source, target: linkData.target };
+
+        // 透明度基于共现强度
+        const normalizedStrength = linkData.strength / maxStrength;
+        const opacity = 0.1 + normalizedStrength * 0.4;
+
+        const lineMaterial = new THREE.LineBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: opacity,
+        });
+
+        const line = new THREE.Line(geometry, lineMaterial);
+        line.userData = {
+          source: linkData.source,
+          target: linkData.target,
+          strength: linkData.strength,
+          lines: linkData.lines || [], // 诗句数据
+        };
         scene.add(line);
         links.push(line);
+        linksData.push(line.userData);
       }
     });
     linksRef.current = links;
 
-    // 8. 添加背景星星
+    // 8. 添加情绪星云雾层 - 按情绪颜色分组，动态云团效果
+    const emotionCenters = {};
+    nodes.forEach(node => {
+      const emotion = node.userData.emotion || '默认';
+      if (!emotionCenters[emotion]) {
+        emotionCenters[emotion] = { x: 0, y: 0, z: 0, count: 0 };
+      }
+      emotionCenters[emotion].x += node.position.x;
+      emotionCenters[emotion].y += node.position.y;
+      emotionCenters[emotion].z += node.position.z;
+      emotionCenters[emotion].count++;
+    });
+
+    // 情绪颜色映射
+    const emotionColors = {
+      '思乡': new THREE.Color(0x3498DB),
+      '离别': new THREE.Color(0xF1C40F),
+      '秋思': new THREE.Color(0x9B59B6),
+      '豪放': new THREE.Color(0xE74C3C),
+      '清雅': new THREE.Color(0x1ABC9C),
+    };
+
+    // 存储所有星云用于动画
+    const nebulaClouds = [];
+
+    for (const emotion in emotionCenters) {
+      const center = emotionCenters[emotion];
+      center.x /= center.count;
+      center.y /= center.count;
+      center.z /= center.count;
+
+      // 创建动态云团 - 适中数量，保持可见度
+      const cloudCount = 150;
+      const cloudGeometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(cloudCount * 3);
+      const sizes = new Float32Array(cloudCount);
+      const randoms = new Float32Array(cloudCount);
+
+      for (let i = 0; i < cloudCount; i++) {
+        // 在情绪中心附近适中范围分布
+        const clusterRadius = 40 + Math.random() * 60;
+        const angle = Math.random() * Math.PI * 2;
+        const height = (Math.random() - 0.5) * 80;
+
+        positions[i * 3] = center.x + clusterRadius * Math.cos(angle) + (Math.random() - 0.5) * 50;
+        positions[i * 3 + 1] = center.y + height;
+        positions[i * 3 + 2] = center.z + clusterRadius * Math.sin(angle) + (Math.random() - 0.5) * 50;
+
+        sizes[i] = 50 + Math.random() * 60;
+        randoms[i] = Math.random();
+      }
+
+      cloudGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      cloudGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+      cloudGeometry.setAttribute('random', new THREE.BufferAttribute(randoms, 1));
+
+      // 自定义Shader实现动态云团
+      const cloudMaterial = new THREE.ShaderMaterial({
+        uniforms: {
+          uTime: { value: 0 },
+          uColor: { value: emotionColors[emotion] || new THREE.Color(0x888888) },
+        },
+        vertexShader: `
+          attribute float size;
+          attribute float random;
+          uniform float uTime;
+          varying float vAlpha;
+          varying float vRandom;
+
+          void main() {
+            vRandom = random;
+            // 动态飘动效果
+            vec3 pos = position;
+            pos.x += sin(uTime * 0.3 + random * 10.0) * 5.0;
+            pos.y += cos(uTime * 0.2 + random * 8.0) * 3.0;
+            pos.z += sin(uTime * 0.25 + random * 6.0) * 4.0;
+
+            vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+            gl_PointSize = size * (300.0 / -mvPosition.z);
+            gl_Position = projectionMatrix * mvPosition;
+
+            // 边缘更透明
+            vAlpha = 0.12 + random * 0.08;
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 uColor;
+          varying float vAlpha;
+          varying float vRandom;
+
+          void main() {
+            // 圆形软边缘
+            vec2 center = gl_PointCoord - vec2(0.5);
+            float dist = length(center);
+            if (dist > 0.5) discard;
+
+            // 软边缘渐变
+            float alpha = vAlpha * (1.0 - dist * 2.0);
+            alpha = pow(alpha, 1.5); // 更柔和的边缘
+
+            gl_FragColor = vec4(uColor, alpha);
+          }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+
+      const cloud = new THREE.Points(cloudGeometry, cloudMaterial);
+      scene.add(cloud);
+      nebulaClouds.push(cloud);
+    }
+
+    // 保存星云引用用于动画
+    nebulaCloudsRef.current = nebulaClouds;
+
+    // 9. 添加背景星星
     const starGeometry = new THREE.BufferGeometry();
     const starCount = 3000;
     const starPositions = new Float32Array(starCount * 3);
@@ -406,8 +551,18 @@ const GraphNebula = ({ onNodeClick }) => {
 
     // 9. 动画循环
     let animationId;
+    let time = 0;
     const animate = () => {
       animationId = requestAnimationFrame(animate);
+      time += 0.016;
+
+      // 更新星云动画
+      nebulaCloudsRef.current.forEach(cloud => {
+        if (cloud.material.uniforms) {
+          cloud.material.uniforms.uTime.value = time;
+        }
+      });
+
       controls.update();
       renderer.render(scene, camera);
     };
@@ -484,14 +639,38 @@ const GraphNebula = ({ onNodeClick }) => {
     const canvas = canvasRef.current;
     const camera = cameraRef.current;
     const nodes = [...nodesRef.current, ...detailNodesRef.current];
+    const links = linksRef.current || [];
 
-    if (!canvas || !camera || nodes.length === 0) return;
+    if (!canvas || !camera) return;
 
     const rect = canvas.getBoundingClientRect();
     mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
     raycasterRef.current.setFromCamera(mouseRef.current, camera);
+
+    // 先检测连线点击
+    if (links.length > 0) {
+      const linkIntersects = raycasterRef.current.intersectObjects(links, false);
+      if (linkIntersects.length > 0) {
+        const clickedLine = linkIntersects[0].object;
+        const lineData = clickedLine.userData;
+
+        // 如果有诗句数据，触发回调
+        if (lineData.lines && lineData.lines.length > 0 && onLineClick) {
+          onLineClick({
+            source: lineData.source,
+            target: lineData.target,
+            strength: lineData.strength,
+            lines: lineData.lines,
+          });
+          return; // 点击了连线，不再处理节点点击
+        }
+      }
+    }
+
+    // 继续检测节点点击
+    if (nodes.length === 0) return;
 
     // 获取所有mesh用于检测
     const allMeshes = [];
@@ -516,7 +695,6 @@ const GraphNebula = ({ onNodeClick }) => {
 
     if (clickedGroup) {
       const clickedNode = clickedGroup;
-      console.log('点击了节点:', clickedNode.userData);
 
       // 恢复之前选中的节点颜色
       if (selectedNodeRef.current) {
@@ -556,7 +734,7 @@ const GraphNebula = ({ onNodeClick }) => {
         }
       }
     }
-  }, [onNodeClick, processedData, toggleDetailLayer]);
+  }, [onNodeClick, onLineClick, processedData, toggleDetailLayer]);
 
   // 绑定事件
   useEffect(() => {
