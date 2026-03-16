@@ -7,6 +7,13 @@ import { IMAGE_DICTIONARY } from '../data/imageDictionary';
 import { generateNebulaData } from '../utils/nebulaGenerator';
 import { CORE_IMAGES } from '../data/coreImages';
 
+// 固定种子随机数生成器
+let seed = 12345;
+function seededRandom() {
+  seed = (seed * 9301 + 49297) % 233280;
+  return seed / 233280;
+}
+
 const GraphNebula = ({ onNodeClick, onLineClick }) => {
   const canvasRef = useRef(null);
   const sceneRef = useRef(null);
@@ -379,9 +386,9 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
         const mid = start.clone().add(end).multiplyScalar(0.5);
         // 随机或基于类别差异添加偏移
         const offsetDir = new THREE.Vector3(
-          (Math.random() - 0.5) * 30,
-          (Math.random() - 0.5) * 30,
-          (Math.random() - 0.5) * 30
+          (seededRandom() - 0.5) * 30,
+          (seededRandom() - 0.5) * 30,
+          (seededRandom() - 0.5) * 30
         );
         mid.add(offsetDir);
 
@@ -390,9 +397,8 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
         const points = curve.getPoints(20);
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
 
-        // 透明度基于共现强度
-        const normalizedStrength = linkData.strength / maxStrength;
-        const opacity = 0.1 + normalizedStrength * 0.4;
+        // 透明度固定0.07
+        const opacity = 0.07;
 
         const lineMaterial = new THREE.LineBasicMaterial({
           color: 0xffffff,
@@ -439,92 +445,69 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
     // 存储所有星云用于动画
     const nebulaClouds = [];
 
+    // 创建柔和的雾状纹理
+    const createFogTexture = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      const center = 64;
+
+      const gradient = ctx.createRadialGradient(center, center, 0, center, center, center);
+      gradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+      gradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.2)');
+      gradient.addColorStop(0.6, 'rgba(255, 255, 255, 0.1)');
+      gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 128, 128);
+
+      return new THREE.CanvasTexture(canvas);
+    };
+
+    const fogTexture = createFogTexture();
+
     for (const emotion in emotionCenters) {
       const center = emotionCenters[emotion];
       center.x /= center.count;
       center.y /= center.count;
       center.z /= center.count;
 
-      // 创建动态云团 - 适中数量，保持可见度
-      const cloudCount = 150;
-      const cloudGeometry = new THREE.BufferGeometry();
-      const positions = new Float32Array(cloudCount * 3);
-      const sizes = new Float32Array(cloudCount);
-      const randoms = new Float32Array(cloudCount);
+      // 用 Sprite 创建雾团 - 减少数量，缩小范围，减少颜色混杂
+      const cloudGroup = new THREE.Group();
+      const spriteCount = 12;
 
-      for (let i = 0; i < cloudCount; i++) {
-        // 在情绪中心附近适中范围分布
-        const clusterRadius = 40 + Math.random() * 60;
-        const angle = Math.random() * Math.PI * 2;
-        const height = (Math.random() - 0.5) * 80;
+      for (let i = 0; i < spriteCount; i++) {
+        // 在情绪中心附近大范围分布
+        const x = center.x + (seededRandom() - 0.5) * 250;
+        const y = center.y + (seededRandom() - 0.5) * 180;
+        const z = center.z + (seededRandom() - 0.5) * 250;
 
-        positions[i * 3] = center.x + clusterRadius * Math.cos(angle) + (Math.random() - 0.5) * 50;
-        positions[i * 3 + 1] = center.y + height;
-        positions[i * 3 + 2] = center.z + clusterRadius * Math.sin(angle) + (Math.random() - 0.5) * 50;
+        const spriteMaterial = new THREE.SpriteMaterial({
+          map: fogTexture,
+          color: emotionColors[emotion] || 0xffffff,
+          transparent: true,
+          opacity: 0.12,
+          blending: THREE.NormalBlending,
+          depthWrite: false,
+        });
 
-        sizes[i] = 50 + Math.random() * 60;
-        randoms[i] = Math.random();
+        const sprite = new THREE.Sprite(spriteMaterial);
+        sprite.position.set(x, y, z);
+        // 保存原始位置用于动画
+        sprite.userData.origX = x;
+        sprite.userData.origY = y;
+        sprite.userData.origZ = z;
+
+        // 随机大小，形成自然片状
+        const scale = 80 + seededRandom() * 120;
+        sprite.scale.set(scale, scale, 1);
+
+        cloudGroup.add(sprite);
       }
 
-      cloudGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      cloudGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-      cloudGeometry.setAttribute('random', new THREE.BufferAttribute(randoms, 1));
-
-      // 自定义Shader实现动态云团
-      const cloudMaterial = new THREE.ShaderMaterial({
-        uniforms: {
-          uTime: { value: 0 },
-          uColor: { value: emotionColors[emotion] || new THREE.Color(0x888888) },
-        },
-        vertexShader: `
-          attribute float size;
-          attribute float random;
-          uniform float uTime;
-          varying float vAlpha;
-          varying float vRandom;
-
-          void main() {
-            vRandom = random;
-            // 动态飘动效果
-            vec3 pos = position;
-            pos.x += sin(uTime * 0.3 + random * 10.0) * 5.0;
-            pos.y += cos(uTime * 0.2 + random * 8.0) * 3.0;
-            pos.z += sin(uTime * 0.25 + random * 6.0) * 4.0;
-
-            vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-            gl_PointSize = size * (300.0 / -mvPosition.z);
-            gl_Position = projectionMatrix * mvPosition;
-
-            // 边缘更透明
-            vAlpha = 0.12 + random * 0.08;
-          }
-        `,
-        fragmentShader: `
-          uniform vec3 uColor;
-          varying float vAlpha;
-          varying float vRandom;
-
-          void main() {
-            // 圆形软边缘
-            vec2 center = gl_PointCoord - vec2(0.5);
-            float dist = length(center);
-            if (dist > 0.5) discard;
-
-            // 软边缘渐变
-            float alpha = vAlpha * (1.0 - dist * 2.0);
-            alpha = pow(alpha, 1.5); // 更柔和的边缘
-
-            gl_FragColor = vec4(uColor, alpha);
-          }
-        `,
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      });
-
-      const cloud = new THREE.Points(cloudGeometry, cloudMaterial);
-      scene.add(cloud);
-      nebulaClouds.push(cloud);
+      scene.add(cloudGroup);
+      nebulaClouds.push(cloudGroup);
     }
 
     // 保存星云引用用于动画
@@ -535,9 +518,9 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
     const starCount = 3000;
     const starPositions = new Float32Array(starCount * 3);
     for (let i = 0; i < starCount * 3; i += 3) {
-      starPositions[i] = (Math.random() - 0.5) * 5000;
-      starPositions[i + 1] = (Math.random() - 0.5) * 5000;
-      starPositions[i + 2] = (Math.random() - 0.5) * 5000;
+      starPositions[i] = (seededRandom() - 0.5) * 5000;
+      starPositions[i + 1] = (seededRandom() - 0.5) * 5000;
+      starPositions[i + 2] = (seededRandom() - 0.5) * 5000;
     }
     starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
     const starMaterial = new THREE.PointsMaterial({
@@ -554,13 +537,17 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
     let time = 0;
     const animate = () => {
       animationId = requestAnimationFrame(animate);
-      time += 0.016;
+      time += 0.01;
 
-      // 更新星云动画
-      nebulaCloudsRef.current.forEach(cloud => {
-        if (cloud.material.uniforms) {
-          cloud.material.uniforms.uTime.value = time;
-        }
+      // 整体缓慢旋转雾层
+      nebulaCloudsRef.current.forEach((cloudGroup, groupIdx) => {
+        // 缓慢旋转
+        cloudGroup.rotation.x = time * 0.05 * (groupIdx % 2 === 0 ? 1 : -1);
+        cloudGroup.rotation.y = time * 0.08;
+
+        // 整体轻微缩放
+        const scale = 1 + Math.sin(time + groupIdx) * 0.05;
+        cloudGroup.scale.set(scale, scale, scale);
       });
 
       controls.update();

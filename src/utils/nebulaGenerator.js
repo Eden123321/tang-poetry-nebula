@@ -1,12 +1,23 @@
 import { CORE_IMAGES, getEmotionColor } from '../data/coreImages';
 
+// 固定种子随机数生成器
+let seed = 12345;
+function seededRandom() {
+  seed = (seed * 9301 + 49297) % 233280;
+  return seed / 233280;
+}
+
 /**
  * 生成星云数据结构
  * @param {Object} cooccurrenceData - 共现统计数据 from calculateCooccurrence
  * @returns {Object} - { nodes, links, metadata }
  */
 export function generateNebulaData(cooccurrenceData) {
-  const { cooccurrence, imageStats, poemImages } = cooccurrenceData;
+  // 优先使用句级共现，如果没有则回退到整诗级
+  const { cooccurrence, lineCooccurrence, imageStats, poemImages } = cooccurrenceData;
+
+  // 使用句级共现作为主要数据源
+  const activeCooccurrence = lineCooccurrence || cooccurrence;
 
   const nodes = [];
   const links = [];
@@ -33,14 +44,14 @@ export function generateNebulaData(cooccurrenceData) {
   const categoryPositions = {};
   categories.forEach((cat, idx) => {
     // 使用更大的空间分布
-    const theta = (idx / categories.length) * Math.PI * 2 + (Math.random() - 0.5) * 2;
-    const phi = Math.random() * Math.PI * 2;
+    const theta = (idx / categories.length) * Math.PI * 2 + (seededRandom() - 0.5) * 2;
+    const phi = seededRandom() * Math.PI * 2;
     // 更大的半径范围，让节点更分散
-    const radius = 60 + Math.random() * 140;
+    const radius = 60 + seededRandom() * 140;
     categoryPositions[cat] = {
       x: radius * Math.cos(theta) * Math.cos(phi * 0.5),
       y: radius * Math.sin(theta) * Math.cos(phi * 0.3) * 0.8,
-      z: (Math.random() - 0.5) * 200, // Z轴更分散
+      z: (seededRandom() - 0.5) * 200, // Z轴更分散
     };
   });
 
@@ -61,10 +72,10 @@ export function generateNebulaData(cooccurrenceData) {
     // 获取类别中心位置
     const catCenter = categoryPositions[coreImage.category];
 
-    // 在类别中心附近添加随机偏移 - 更大的随机范围让节点更分散
-    const offsetRadius = 25 + Math.random() * 65;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.random() * Math.PI;
+    // 在类别中心附近添加随机偏移 - 增大距离
+    const offsetRadius = 40 + seededRandom() * 80;
+    const theta = seededRandom() * Math.PI * 2;
+    const phi = seededRandom() * Math.PI;
     const x = catCenter.x + offsetRadius * Math.sin(phi) * Math.cos(theta);
     const y = catCenter.y + offsetRadius * Math.sin(phi) * Math.sin(theta);
     const z = catCenter.z + offsetRadius * Math.cos(phi);
@@ -90,26 +101,29 @@ export function generateNebulaData(cooccurrenceData) {
     nodeIndex++;
   }
 
-  // 生成核心意象之间的连线
+  // 生成核心意象之间的连线（句级共现）
   // 只显示最强的共现关系
   const linkStrength = {};
-  for (const key in cooccurrence) {
+  for (const key in activeCooccurrence) {
     const [img1, img2] = key.split('-');
     // 只处理两个都是核心意象的情况
     if (coreImageSet.has(img1) && coreImageSet.has(img2)) {
-      const strength = cooccurrence[key].count;
+      const data = activeCooccurrence[key];
+      const strength = data.count;
+      const lines = data.lines || []; // 保存诗句信息
+
       if (!linkStrength[img1]) linkStrength[img1] = [];
       if (!linkStrength[img2]) linkStrength[img2] = [];
-      linkStrength[img1].push({ target: img2, strength });
-      linkStrength[img2].push({ target: img1, strength });
+      linkStrength[img1].push({ target: img2, strength, lines });
+      linkStrength[img2].push({ target: img1, strength, lines });
     }
   }
 
-  // 为每个核心节点添加最多3条最强连线
+  // 为每个核心节点添加最多5条最强连线
   for (const coreId in linkStrength) {
     const connections = linkStrength[coreId]
       .sort((a, b) => b.strength - a.strength)
-      .slice(0, 3);
+      .slice(0, 5);
 
     for (const conn of connections) {
       // 避免重复连线
@@ -119,6 +133,7 @@ export function generateNebulaData(cooccurrenceData) {
           source: coreId,
           target: conn.target,
           strength: conn.strength,
+          lines: conn.lines, // 保存诗句供交互使用
         });
       }
     }
@@ -132,6 +147,7 @@ export function generateNebulaData(cooccurrenceData) {
       totalLinks: links.length,
       imageStats,
       poemImages,
+      lineCooccurrence, // 句级共现数据，包含诗句
     },
   };
 }

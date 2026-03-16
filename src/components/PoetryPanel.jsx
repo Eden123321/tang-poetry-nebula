@@ -5,6 +5,9 @@ const PoetryPanel = ({ node, poems, onClose }) => {
 
   if (!node) return null;
 
+  // 处理连线点击的情况
+  const isLineClick = node.isLine;
+
   return (
     <div style={{
       position: 'absolute',
@@ -34,9 +37,9 @@ const PoetryPanel = ({ node, poems, onClose }) => {
         <div>
           <h2 style={{
             margin: 0,
-            fontSize: '24px',
+            fontSize: isLineClick ? '18px' : '24px',
             fontWeight: 'bold',
-            color: node.color || '#fff',
+            color: isLineClick ? '#D4A574' : (node.color || '#fff'),
           }}>
             {node.name}
           </h2>
@@ -45,7 +48,9 @@ const PoetryPanel = ({ node, poems, onClose }) => {
             color: 'rgba(255,255,255,0.6)',
             marginTop: '5px',
           }}>
-            出现 {node.count || 0} 次 · {poems?.length || 0} 首诗
+            {isLineClick
+              ? `共现 ${node.strength} 次 · ${poems?.length || 0} 句`
+              : `出现 ${node.count || 0} 次 · ${poems?.length || 0} 首诗`}
           </div>
         </div>
         <button

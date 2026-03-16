@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh repo list Eden123321)",
+      "Bash(gh auth login --hostname github.com --token-stdin)",
+      "Bash(gh auth login --web)",
+      "Bash(echo $GH_TOKEN)",
+      "Bash(gh auth login -p https)",
+      "Bash(npm run:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:medium.com)",
+      "Bash(npx vite:*)"
+    ]
+  }
+}
