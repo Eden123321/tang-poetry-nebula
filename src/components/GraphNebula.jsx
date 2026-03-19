@@ -103,8 +103,12 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
     if (expandedCore === coreId) {
       detailNodesRef.current
         .filter(node => node.userData.parentCore === coreId)
-        .forEach(node => {
-          node.material.opacity = node.userData.originalOpacity; // 恢复低亮度
+        .forEach(group => {
+          // detailNodes 现在是 Group，需要找到 Sprite
+          const sprite = group.children.find(c => c.isSprite);
+          if (sprite && sprite.material) {
+            sprite.material.opacity = group.userData.originalOpacity || 0.3;
+          }
         });
       detailLinksRef.current
         .filter(line => line.userData?.parentCore === coreId)
@@ -119,8 +123,11 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
     if (expandedCore) {
       detailNodesRef.current
         .filter(node => node.userData.parentCore === expandedCore)
-        .forEach(node => {
-          node.material.opacity = node.userData.originalOpacity;
+        .forEach(group => {
+          const sprite = group.children.find(c => c.isSprite);
+          if (sprite && sprite.material) {
+            sprite.material.opacity = group.userData.originalOpacity || 0.3;
+          }
         });
       detailLinksRef.current
         .filter(line => line.userData?.parentCore === expandedCore)
@@ -132,8 +139,12 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
     // 激活当前核心节点的细节节点（高亮发光+显示连线）
     detailNodesRef.current
       .filter(node => node.userData.parentCore === coreId)
-      .forEach(node => {
-        node.material.opacity = 0.8; // 高亮发光
+      .forEach(group => {
+        // detailNodes 现在是 Group，需要找到 Sprite
+        const sprite = group.children.find(c => c.isSprite);
+        if (sprite && sprite.material) {
+          sprite.material.opacity = 0.8; // 高亮发光
+        }
       });
     detailLinksRef.current
       .filter(line => line.userData?.parentCore === coreId)
@@ -279,10 +290,11 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
       // 根据节点值调整光晕大小，最小12，最大80
       const glowSize = 12 + (nodeData.val / 60) * 68;
       glow.scale.set(glowSize, glowSize, 1);
+      glow.renderOrder = 1; // 确保渲染在连线上方
       group.add(glow);
 
       // 添加一个不可见的球体用于点击检测
-      const hitGeometry = new THREE.SphereGeometry(nodeData.val * 0.8, 8, 8);
+      const hitGeometry = new THREE.SphereGeometry(5, 8, 8);
       const hitMaterial = new THREE.MeshBasicMaterial({
         visible: false,
       });
@@ -333,19 +345,40 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
           depthWrite: false,
         });
         const sprite = new THREE.Sprite(spriteMaterial);
-        sprite.scale.set(8, 8, 1); // 比核心节点小
+        sprite.scale.set(15, 15, 1);
         sprite.position.set(x, y, z);
+        sprite.renderOrder = 1; // 确保渲染在连线上方
         sprite.userData = {
+          id: specific.name,
           name: specific.name,
           count: specific.count,
+          poemIds: specific.poemIds || [],
           isDetail: true,
+          isCore: false,
           parentCore: coreId,
           baseColor: baseColor,
           originalOpacity: 0.3,
         };
         sprite.visible = true;
         scene.add(sprite);
-        detailNodes.push(sprite);
+
+        // 创建不可见的检测区域 Mesh - 缩小检测范围
+        const hitGeometry = new THREE.SphereGeometry(8, 8, 8);
+        const hitMaterial = new THREE.MeshBasicMaterial({
+          visible: false, // 不可见但可检测
+        });
+        const hitMesh = new THREE.Mesh(hitGeometry, hitMaterial);
+        hitMesh.position.copy(sprite.position);
+        hitMesh.userData = sprite.userData; // 共享 userData
+        scene.add(hitMesh);
+
+        // 将 sprite 和 hitMesh 存储在一起
+        const detailGroup = new THREE.Group();
+        detailGroup.add(sprite);
+        detailGroup.add(hitMesh);
+        detailGroup.userData = sprite.userData;
+        scene.add(detailGroup);
+        detailNodes.push(detailGroup);
 
         // 连线 - 初始隐藏
         const points = [parentPos.clone(), new THREE.Vector3(x, y, z)];
@@ -354,11 +387,11 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
           color: baseColor,
           transparent: true,
           opacity: 0.2,
+          depthWrite: false, // 避免深度冲突导致变黑
         });
         const line = new THREE.Line(lineGeo, lineMat);
         line.userData = { parentCore: coreId };
         line.visible = false; // 初始隐藏
-
         scene.add(line);
         detailLinks.push(line);
       }
@@ -404,6 +437,7 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
           color: 0xffffff,
           transparent: true,
           opacity: opacity,
+          depthWrite: false, // 避免深度冲突导致变黑
         });
 
         const line = new THREE.Line(geometry, lineMaterial);
@@ -591,22 +625,43 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
     nodes.forEach(node => {
       // 处理核心节点（Group）
       if (node.traverse) {
-        node.traverse(child => {
-          if (child.isMesh) {
-            child.parentNode = node;
-            allMeshes.push(child);
-          }
-        });
+        // 检查是否是细节节点组（包含 invisible mesh）
+        if (node.userData && node.userData.isDetail) {
+          // 细节节点组，找到不可见的检测Mesh
+          node.traverse(child => {
+            if (child.isMesh && child.material.visible === false) {
+              child.parentNode = node;
+              allMeshes.push(child);
+            }
+          });
+        } else {
+          // 核心节点
+          node.traverse(child => {
+            if (child.isMesh) {
+              child.parentNode = node;
+              allMeshes.push(child);
+            }
+          });
+        }
       }
-      // 处理细节节点（直接是Mesh）
-      else if (node.isMesh) {
+      // 处理细节节点（直接是Sprite）- 备用
+      else if (node.isSprite) {
         node.parentNode = node;
         allMeshes.push(node);
       }
     });
 
     const intersects = raycasterRef.current.intersectObjects(allMeshes);
-    const hoveredGroup = intersects.length > 0 ? intersects[0].object.parentNode : null;
+    let hoveredGroup = null;
+    if (intersects.length > 0) {
+      const hit = intersects[0].object;
+      // 如果是 Sprite（没有 traverse 方法），直接使用自身
+      if (hit.isSprite) {
+        hoveredGroup = hit;
+      } else {
+        hoveredGroup = hit.parentNode;
+      }
+    }
 
     if (hoveredGroup) {
       if (hoveredNode !== hoveredGroup) {
@@ -636,7 +691,119 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
 
     raycasterRef.current.setFromCamera(mouseRef.current, camera);
 
-    // 先检测连线点击
+    // 先检测节点点击（优先）
+    if (nodes.length > 0) {
+      // 获取所有可检测对象
+      const allObjects = [];
+      nodes.forEach(node => {
+        // 处理Group节点
+        if (node.isGroup || node.traverse) {
+          // 检查是否是细节节点组
+          if (node.userData && node.userData.isDetail) {
+            // 细节节点组，找到不可见的检测Mesh
+            node.traverse(child => {
+              if (child.isMesh && child.material.visible === false) {
+                child.parentNode = node;
+                allObjects.push(child);
+              }
+            });
+          } else {
+            // 核心节点组，添加所有子对象
+            node.traverse(child => {
+              if (child.isMesh || child.isSprite) {
+                child.parentNode = node;
+                allObjects.push(child);
+              }
+            });
+          }
+        }
+        // 处理直接是Sprite或Mesh的节点
+        else if (node.isSprite || node.isMesh) {
+          node.parentNode = node;
+          allObjects.push(node);
+        }
+      });
+
+      const intersects = raycasterRef.current.intersectObjects(allObjects);
+      let clickedGroup = null;
+      if (intersects.length > 0) {
+        const hit = intersects[0].object;
+        // 如果是 Sprite，检查是否有父级 Group
+        if (hit.isSprite && hit.parent && hit.parent.isGroup) {
+          clickedGroup = hit.parent;
+        } else if (hit.isSprite) {
+          // 如果没有父级Group，使用自身
+          clickedGroup = hit;
+        } else {
+          clickedGroup = hit.parentNode;
+        }
+      }
+
+      if (clickedGroup) {
+        const clickedNode = clickedGroup;
+
+        // 恢复之前选中的节点颜色
+        if (selectedNodeRef.current) {
+          const coreMesh = selectedNodeRef.current.children.find(c => c.isMesh && c.geometry.type === 'SphereGeometry' && c.geometry.parameters.radius < 10);
+          if (coreMesh) {
+            coreMesh.material.color.setStyle(selectedNodeRef.current.userData.color);
+          }
+        }
+
+        // 高亮选中的节点 - 只高亮核心mesh
+        const newCoreMesh = clickedGroup.children.find(c => c.isMesh && c.geometry.type === 'SphereGeometry' && c.geometry.parameters.radius < 10);
+        if (newCoreMesh) {
+          newCoreMesh.material.color.setHex(0xffffff);
+        }
+        selectedNodeRef.current = clickedGroup;
+
+        // 如果点击的是核心节点，展开细节层
+        if (clickedNode.userData.isCore) {
+          toggleDetailLayer(clickedGroup);
+        }
+
+        // 获取相关诗歌
+        let relatedPoems = [];
+        if (processedData && processedData.cooccurrenceData) {
+          const { cooccurrenceData } = processedData;
+
+          // 如果点击的是具体节点，直接使用 poemIds 获取诗歌
+          if (clickedNode.userData.isDetail && clickedNode.userData.poemIds && clickedNode.userData.poemIds.length > 0) {
+            relatedPoems = clickedNode.userData.poemIds
+              .map(id => cooccurrenceData.poemImages[id]?.poem)
+              .filter(Boolean);
+          } else if (clickedNode.userData.isDetail) {
+            // 如果 poemIds 为空，尝试根据节点名称查找
+            const nodeName = clickedNode.userData.name;
+            for (const poemId in cooccurrenceData.poemImages) {
+              const poemData = cooccurrenceData.poemImages[poemId];
+              if (poemData.specificImages && poemData.specificImages.includes(nodeName)) {
+                relatedPoems.push(poemData.poem);
+              }
+            }
+          }
+
+          // 如果仍然没有找到，尝试核心节点的方式
+          if (relatedPoems.length === 0) {
+            relatedPoems = getRelatedPoems(
+              clickedNode.userData.id,
+              cooccurrenceData.imageStats,
+              cooccurrenceData.poemImages
+            ).map(p => p.poem);
+          }
+
+          if (onNodeClick) {
+            onNodeClick({
+              node: clickedNode.userData,
+              relatedPoems,
+            });
+          }
+        }
+        return; // 点击了节点，不再处理连线
+      }
+    }
+
+    // 节点未点击到，检测连线点击
     if (links.length > 0) {
       const linkIntersects = raycasterRef.current.intersectObjects(links, false);
       if (linkIntersects.length > 0) {
@@ -650,73 +817,6 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
             target: lineData.target,
             strength: lineData.strength,
             lines: lineData.lines,
-          });
-          return; // 点击了连线，不再处理节点点击
-        }
-      }
-    }
-
-    // 继续检测节点点击
-    if (nodes.length === 0) return;
-
-    // 获取所有mesh用于检测
-    const allMeshes = [];
-    nodes.forEach(node => {
-      // 处理核心节点（Group）
-      if (node.traverse) {
-        node.traverse(child => {
-          if (child.isMesh) {
-            child.parentNode = node;
-            allMeshes.push(child);
-          }
-        });
-      }
-      // 处理细节节点（直接是Mesh）
-      else if (node.isMesh) {
-        node.parentNode = node;
-        allMeshes.push(node);
-      }
-    });
-    const intersects = raycasterRef.current.intersectObjects(allMeshes);
-    const clickedGroup = intersects.length > 0 ? intersects[0].object.parentNode : null;
-
-    if (clickedGroup) {
-      const clickedNode = clickedGroup;
-
-      // 恢复之前选中的节点颜色
-      if (selectedNodeRef.current) {
-        const coreMesh = selectedNodeRef.current.children.find(c => c.isMesh && c.geometry.type === 'SphereGeometry' && c.geometry.parameters.radius < 10);
-        if (coreMesh) {
-          coreMesh.material.color.setStyle(selectedNodeRef.current.userData.color);
-        }
-      }
-
-      // 高亮选中的节点 - 只高亮核心mesh
-      const newCoreMesh = clickedGroup.children.find(c => c.isMesh && c.geometry.type === 'SphereGeometry' && c.geometry.parameters.radius < 10);
-      if (newCoreMesh) {
-        newCoreMesh.material.color.setHex(0xffffff);
-      }
-      selectedNodeRef.current = clickedGroup;
-
-      // 如果点击的是核心节点，展开细节层
-      if (clickedNode.userData.isCore) {
-        toggleDetailLayer(clickedGroup);
-      }
-
-      // 获取相关诗歌
-      if (processedData && processedData.cooccurrenceData) {
-        const { cooccurrenceData } = processedData;
-
-        const relatedPoems = getRelatedPoems(
-          clickedNode.userData.id,
-          cooccurrenceData.imageStats,
-          cooccurrenceData.poemImages
-        );
-
-        if (onNodeClick) {
-          onNodeClick({
-            node: clickedNode.userData,
-            relatedPoems: relatedPoems.map(p => p.poem),
           });
         }
       }

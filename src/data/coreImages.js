@@ -1,4 +1,4 @@
-// 50个核心意象定义
+// 核心意象定义
 // 按PRD分类设计
 
 export const CORE_IMAGES = [
@@ -69,6 +69,61 @@ export const CORE_IMAGES = [
   { id: '亭', name: '亭', category: '建筑', emotion: '离别' },
   { id: '寺', name: '寺', category: '建筑', emotion: '清雅' },
   { id: '关', name: '关', category: '建筑', emotion: '离别' },
+
+  // 天象扩展 (7个)
+  { id: '霜', name: '霜', category: '天象', emotion: '秋思' },
+  { id: '雪', name: '雪', category: '天象', emotion: '清雅' },
+  { id: '雾', name: '雾', category: '天象', emotion: '清雅' },
+  { id: '雷', name: '雷', category: '天象', emotion: '豪放' },
+  { id: '霞', name: '霞', category: '天象', emotion: '清雅' },
+  { id: '银河', name: '银河', category: '天象', emotion: '思乡' },
+  { id: '夕阳', name: '夕阳', category: '天象', emotion: '离别' },
+
+  // 山水扩展 (7个)
+  { id: '溪', name: '溪', category: '山水', emotion: '清雅' },
+  { id: '潭', name: '潭', category: '山水', emotion: '清雅' },
+  { id: '瀑布', name: '瀑布', category: '山水', emotion: '豪放' },
+  { id: '岛', name: '岛', category: '山水', emotion: '思乡' },
+  { id: '沙漠', name: '沙漠', category: '山水', emotion: '豪放' },
+  { id: '平原', name: '平原', category: '山水', emotion: '清雅' },
+  { id: '峡谷', name: '峡谷', category: '山水', emotion: '豪放' },
+
+  // 植物扩展 (6个)
+  { id: '梧桐', name: '梧桐', category: '植物', emotion: '秋思' },
+  { id: '芭蕉', name: '芭蕉', category: '植物', emotion: '秋思' },
+  { id: '芦苇', name: '芦苇', category: '植物', emotion: '清雅' },
+  { id: '红豆', name: '红豆', category: '植物', emotion: '思乡' },
+  { id: '莲', name: '莲', category: '植物', emotion: '清雅' },
+  { id: '荷', name: '荷', category: '植物', emotion: '清雅' },
+
+  // 动物扩展 (6个)
+  { id: '鸦', name: '鸦', category: '动物', emotion: '秋思' },
+  { id: '鹊', name: '鹊', category: '动物', emotion: '清雅' },
+  { id: '莺', name: '莺', category: '动物', emotion: '清雅' },
+  { id: '杜鹃', name: '杜鹃', category: '动物', emotion: '秋思' },
+  { id: '鹦鹉', name: '鹦鹉', category: '动物', emotion: '清雅' },
+  { id: '萤火虫', name: '萤', category: '动物', emotion: '清雅' },
+
+  // 行旅扩展 (4个)
+  { id: '长亭', name: '长亭', category: '行旅', emotion: '离别' },
+  { id: '津渡', name: '津渡', category: '行旅', emotion: '离别' },
+  { id: '歧路', name: '歧路', category: '行旅', emotion: '离别' },
+  { id: '荒径', name: '荒径', category: '行旅', emotion: '秋思' },
+
+  // 情境扩展 (6个)
+  { id: '醉', name: '醉', category: '情境', emotion: '豪放' },
+  { id: '醒', name: '醒', category: '情境', emotion: '秋思' },
+  { id: '眠', name: '眠', category: '情境', emotion: '思乡' },
+  { id: '怨', name: '怨', category: '情境', emotion: '秋思' },
+  { id: '吟', name: '吟', category: '情境', emotion: '清雅' },
+  { id: '啸', name: '啸', category: '情境', emotion: '豪放' },
+
+  // 建筑扩展 (5个)
+  { id: '城', name: '城', category: '建筑', emotion: '离别' },
+  { id: '墙', name: '墙', category: '建筑', emotion: '思乡' },
+  { id: '塔', name: '塔', category: '建筑', emotion: '清雅' },
+  { id: '钟', name: '钟', category: '建筑', emotion: '清雅' },
+  { id: '楼台', name: '楼台', category: '建筑', emotion: '思乡' },
 ];
 
 // 情绪颜色映射

@@ -56,9 +56,21 @@ export function generateNebulaData(cooccurrenceData) {
   });
 
   let nodeIndex = 0;
+  console.log(`=== 总诗歌数量: ${Object.keys(poemImages).length} ===`);
   console.log('=== 节点count调试 ===');
+
+  // 过滤阈值：只保留出现次数>=5的核心意象
+  const MIN_COUNT_THRESHOLD = 5;
+
   for (const coreImage of CORE_IMAGES) {
     const stats = imageStats[coreImage.id] || { count: 0, poems: [] };
+
+    // 跳过出现次数太少的意象
+    if (stats.count < MIN_COUNT_THRESHOLD) {
+      console.log(`${coreImage.name}: count=${stats.count} (跳过)`);
+      continue;
+    }
+
     console.log(`${coreImage.name}: count=${stats.count}`);
 
     // 计算节点大小（基于出现次数）- 使用非线性缩放使差异更明显
@@ -72,8 +84,8 @@ export function generateNebulaData(cooccurrenceData) {
     // 获取类别中心位置
     const catCenter = categoryPositions[coreImage.category];
 
-    // 在类别中心附近添加随机偏移 - 增大距离
-    const offsetRadius = 40 + seededRandom() * 80;
+    // 在类别中心附近添加随机偏移 - 拉大距离
+    const offsetRadius = 80 + seededRandom() * 120;
     const theta = seededRandom() * Math.PI * 2;
     const phi = seededRandom() * Math.PI;
     const x = catCenter.x + offsetRadius * Math.sin(phi) * Math.cos(theta);
@@ -119,9 +131,11 @@ export function generateNebulaData(cooccurrenceData) {
     }
   }
 
-  // 为每个核心节点添加最多5条最强连线
+  // 为每个核心节点添加最多5条最强连线（过滤太弱的）
+  const MIN_LINK_STRENGTH = 2; // 最小连线强度
   for (const coreId in linkStrength) {
     const connections = linkStrength[coreId]
+      .filter(c => c.strength >= MIN_LINK_STRENGTH)
       .sort((a, b) => b.strength - a.strength)
       .slice(0, 5);
 
