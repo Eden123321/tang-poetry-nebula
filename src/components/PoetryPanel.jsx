@@ -1,12 +1,90 @@
 import { useState } from 'react';
 
-const PoetryPanel = ({ node, poems, onClose }) => {
+// 高亮诗句中的意象 - 支持多个意象各自使用自己的颜色
+const highlightImages = (line, imagesWithColors, currentHighlightColor) => {
+  if (!imagesWithColors || imagesWithColors.length === 0) return line;
+
+  // 按长度降序排序，确保先匹配长词
+  const sortedImages = [...imagesWithColors].sort((a, b) => b.name.length - a.name.length);
+
+  // 构建带颜色高亮的HTML
+  let finalHtml = line;
+  const processed = new Set();
+
+  for (const imgData of sortedImages) {
+    const imgName = typeof imgData === 'string' ? imgData : imgData.name;
+    const color = typeof imgData === 'string' ? currentHighlightColor : imgData.color;
+
+    if (processed.has(imgName)) continue;
+
+    const regex = new RegExp(imgName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+    finalHtml = finalHtml.replace(regex, (match) => {
+      processed.add(imgName);
+      return `<span style="color: ${color}; font-weight: bold; text-shadow: 0 0 8px ${color}80;">${match}</span>`;
+    });
+  }
+
+  return <span dangerouslySetInnerHTML={{ __html: finalHtml }} />;
+};
+
+// 将hex颜色变淡（降低透明度/亮度）
+const lightenColor = (hex, factor = 0.6) => {
+  // 移除#前缀
+  hex = hex.replace('#', '');
+
+  // 解析RGB
+  let r = parseInt(hex.substring(0, 2), 16);
+  let g = parseInt(hex.substring(2, 4), 16);
+  let b = parseInt(hex.substring(4, 6), 16);
+
+  // 混合白色以变淡
+  r = Math.round(r * factor + 255 * (1 - factor));
+  g = Math.round(g * factor + 255 * (1 - factor));
+  b = Math.round(b * factor + 255 * (1 - factor));
+
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+};
+
+const PoetryPanel = ({ node, poems, relatedImages, onClose }) => {
   const [expandedPoem, setExpandedPoem] = useState(null);
 
   if (!node) return null;
 
   // 处理连线点击的情况
   const isLineClick = node.isLine;
+
+  // 获取高亮颜色
+  // 具体节点使用淡化颜色
+  const nodeColor = node.color || node.currentColor || '#fff';
+  const highlightColor = node.isDetail ? lightenColor(nodeColor, 0.5) : nodeColor;
+
+  // 构建高亮列表：当前意象 + 相关意象（带各自颜色）
+  let highlightList = [];
+
+  if (isLineClick && node.source && node.target) {
+    // 连线点击：高亮两个意象
+    highlightList = [
+      { name: node.source, color: nodeColor },
+      { name: node.target, color: nodeColor }
+    ];
+  } else if (node.name) {
+    // 节点点击：高亮当前意象 + 相关意象
+    // 先添加当前意象
+    highlightList = [{ name: node.name, color: highlightColor }];
+
+    // 添加相关意象（如果有）
+    if (relatedImages && relatedImages.length > 0) {
+      for (const relImg of relatedImages) {
+        // 避免重复
+        if (!highlightList.find(h => h.name === relImg.name)) {
+          highlightList.push({
+            name: relImg.name,
+            color: relImg.color || highlightColor
+          });
+        }
+      }
+    }
+  }
 
   return (
     <div style={{
@@ -153,7 +231,7 @@ const PoetryPanel = ({ node, poems, onClose }) => {
                     color: 'rgba(255,255,255,0.85)',
                   }}>
                     {poem.content.map((line, i) => (
-                      <div key={i}>{line}</div>
+                      <div key={i}>{highlightImages(line, highlightList, highlightColor)}</div>
                     ))}
                   </div>
                 )}

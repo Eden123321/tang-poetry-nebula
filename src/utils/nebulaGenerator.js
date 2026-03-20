@@ -59,17 +59,32 @@ export function generateNebulaData(cooccurrenceData) {
   console.log(`=== 总诗歌数量: ${Object.keys(poemImages).length} ===`);
   console.log('=== 节点count调试 ===');
 
-  // 过滤阈值：只保留出现次数>=5的核心意象
-  const MIN_COUNT_THRESHOLD = 5;
+  // 过滤阈值：只保留出现次数>=2的核心意象
+  const MIN_COUNT_THRESHOLD = 2;
+
+  // 统计被跳过的意象
+  const skippedImages = [];
+  const keptImages = [];
 
   for (const coreImage of CORE_IMAGES) {
     const stats = imageStats[coreImage.id] || { count: 0, poems: [] };
 
     // 跳过出现次数太少的意象
     if (stats.count < MIN_COUNT_THRESHOLD) {
-      console.log(`${coreImage.name}: count=${stats.count} (跳过)`);
+      skippedImages.push({ name: coreImage.name, count: stats.count });
       continue;
     }
+
+    keptImages.push({ name: coreImage.name, count: stats.count });
+  }
+
+  console.log(`=== 总意象: ${CORE_IMAGES.length}, 保留: ${keptImages.length}, 跳过: ${skippedImages.length} ===`);
+  console.log('保留的意象:', keptImages.map(i => `${i.name}(${i.count})`).join(', '));
+  console.log('跳过的意象:', skippedImages.map(i => `${i.name}(${i.count})`).join(', '));
+
+  for (const coreImage of CORE_IMAGES) {
+    const stats = imageStats[coreImage.id] || { count: 0, poems: [] };
+    if (stats.count < MIN_COUNT_THRESHOLD) continue;
 
     console.log(`${coreImage.name}: count=${stats.count}`);
 

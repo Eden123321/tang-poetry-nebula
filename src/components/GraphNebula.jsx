@@ -5,7 +5,7 @@ import poems from '../data/poems.json';
 import { calculateCooccurrence, extractImages, getRelatedPoems } from '../utils/imageExtractor';
 import { IMAGE_DICTIONARY } from '../data/imageDictionary';
 import { generateNebulaData } from '../utils/nebulaGenerator';
-import { CORE_IMAGES } from '../data/coreImages';
+import { CORE_IMAGES, getEmotionColor } from '../data/coreImages';
 
 // 固定种子随机数生成器
 let seed = 12345;
@@ -356,6 +356,7 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
           isDetail: true,
           isCore: false,
           parentCore: coreId,
+          color: baseColor, // 添加color字段用于面板显示
           baseColor: baseColor,
           originalOpacity: 0.3,
         };
@@ -792,10 +793,50 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
             ).map(p => p.poem);
           }
 
+          // 计算相关意象（与当前意象共现的意象）
+          const relatedImages = [];
+          const currentId = clickedNode.userData.id || clickedNode.userData.name;
+
+          // 从CORE_IMAGES中查找当前意象的颜色
+          const currentCore = CORE_IMAGES.find(c => c.id === currentId || c.name === currentId);
+          const currentColor = currentCore ? getEmotionColor(currentCore.emotion) : '#888';
+
+          // 查找与当前意象共现的其他意象
+          // lineCooccurrence 结构是 { "img1-img2": { img1, img2, count } }
+          if (cooccurrenceData.lineCooccurrence) {
+            const relatedSet = new Set(); // 用于去重
+
+            for (const key in cooccurrenceData.lineCooccurrence) {
+              const data = cooccurrenceData.lineCooccurrence[key];
+              let targetId = null;
+
+              // 检查当前意象是否在这个连线中
+              if (data.img1 === currentId) {
+                targetId = data.img2;
+              } else if (data.img2 === currentId) {
+                targetId = data.img1;
+              }
+
+              // 如果找到相关意象，获取其情绪颜色
+              if (targetId && !relatedSet.has(targetId)) {
+                relatedSet.add(targetId);
+                const targetCore = CORE_IMAGES.find(c => c.id === targetId || c.name === targetId);
+                if (targetCore) {
+                  relatedImages.push({
+                    name: targetCore.name,
+                    color: getEmotionColor(targetCore.emotion)
+                  });
+                }
+              }
+            }
+          }
+
           if (onNodeClick) {
             onNodeClick({
               node: clickedNode.userData,
               relatedPoems,
+              relatedImages,
+              currentColor,
             });
           }
         }

@@ -1,4 +1,4 @@
-// 核心意象定义
+// 核心意象定义（简体）
 // 按PRD分类设计
 
 export const CORE_IMAGES = [
@@ -61,7 +61,6 @@ export const CORE_IMAGES = [
   { id: '心', name: '心', category: '情境', emotion: '思乡' },
   { id: '情', name: '情', category: '情境', emotion: '离别' },
   { id: '忆', name: '忆', category: '情境', emotion: '思乡' },
-  { id: '恨', name: '恨', category: '情境', emotion: '秋思' },
   { id: '伤', name: '伤', category: '情境', emotion: '秋思' },
 
   // 建筑 (4个)
@@ -102,7 +101,7 @@ export const CORE_IMAGES = [
   { id: '莺', name: '莺', category: '动物', emotion: '清雅' },
   { id: '杜鹃', name: '杜鹃', category: '动物', emotion: '秋思' },
   { id: '鹦鹉', name: '鹦鹉', category: '动物', emotion: '清雅' },
-  { id: '萤火虫', name: '萤', category: '动物', emotion: '清雅' },
+  { id: '萤', name: '萤', category: '动物', emotion: '清雅' },
 
   // 行旅扩展 (4个)
   { id: '长亭', name: '长亭', category: '行旅', emotion: '离别' },

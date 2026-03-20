@@ -6,16 +6,18 @@ import './App.css';
 function App() {
   const [selectedNode, setSelectedNode] = useState(null);
   const [relatedPoems, setRelatedPoems] = useState([]);
+  const [relatedImages, setRelatedImages] = useState([]);
   const [lineData, setLineData] = useState(null); // 连线点击数据
 
-  const handleNodeClick = ({ node, relatedPoems }) => {
-    setSelectedNode(node);
+  const handleNodeClick = ({ node, relatedPoems, relatedImages, currentColor }) => {
+    setSelectedNode({ ...node, currentColor });
     setRelatedPoems(relatedPoems);
+    setRelatedImages(relatedImages || []);
     setLineData(null); // 清除连线数据
   };
 
   const handleLineClick = ({ source, target, strength, lines }) => {
-    setSelectedNode({ name: `${source}-${target}`, isLine: true, strength });
+    setSelectedNode({ name: `${source}-${target}`, isLine: true, strength, source, target });
     setRelatedPoems(lines.map(l => ({
       id: l.poemId,
       title: l.poemTitle,
@@ -23,12 +25,14 @@ function App() {
       author: '',
       dynasty: '唐'
     })));
+    setRelatedImages([]);
     setLineData({ source, target, strength, lines });
   };
 
   const handleClosePanel = () => {
     setSelectedNode(null);
     setRelatedPoems([]);
+    setRelatedImages([]);
     setLineData(null);
   };
 
@@ -50,6 +54,7 @@ function App() {
         <PoetryPanel
           node={selectedNode}
           poems={relatedPoems}
+          relatedImages={relatedImages}
           onClose={handleClosePanel}
         />
       )}
