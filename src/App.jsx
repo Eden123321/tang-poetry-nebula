@@ -46,7 +46,7 @@ function App() {
 
       {/* 3D星云 */}
       <div className="graph-container">
-        <GraphNebula onNodeClick={handleNodeClick} onLineClick={handleLineClick} />
+        <GraphNebula onNodeClick={handleNodeClick} onLineClick={handleLineClick} onClosePanel={handleClosePanel} />
       </div>
 
       {/* 诗歌详情面板 */}

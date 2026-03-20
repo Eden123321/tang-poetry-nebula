@@ -39,19 +39,29 @@ export function generateNebulaData(cooccurrenceData) {
     categoryGroups[coreImage.category].push(coreImage);
   }
 
-  // 计算每个类别的初始位置 - 3D星云分布，更分散
+  // ========== 星云分布算法 ==========
+  //
+  // 参数调整：
+  // - 类别中心半径扩大至180-250，拉大类间距离
+  // - 高斯σ减小至20-30，节点紧密围绕类中心
+
   const categories = Object.keys(categoryGroups);
   const categoryPositions = {};
+
+  // 类别中心分布：球壳半径120-180
+  const CATEGORY_RADIUS_MIN = 120;
+  const CATEGORY_RADIUS_MAX = 180;
+
+  const goldenRatio = (1 + Math.sqrt(5)) / 2;
   categories.forEach((cat, idx) => {
-    // 使用更大的空间分布
-    const theta = (idx / categories.length) * Math.PI * 2 + (seededRandom() - 0.5) * 2;
-    const phi = seededRandom() * Math.PI * 2;
-    // 更大的半径范围，让节点更分散
-    const radius = 60 + seededRandom() * 140;
+    const theta = 2 * Math.PI * idx / goldenRatio;
+    const phi = Math.acos(1 - 2 * (idx + 0.5) / categories.length);
+    const radius = CATEGORY_RADIUS_MIN + seededRandom() * (CATEGORY_RADIUS_MAX - CATEGORY_RADIUS_MIN);
+
     categoryPositions[cat] = {
-      x: radius * Math.cos(theta) * Math.cos(phi * 0.5),
-      y: radius * Math.sin(theta) * Math.cos(phi * 0.3) * 0.8,
-      z: (seededRandom() - 0.5) * 200, // Z轴更分散
+      x: radius * Math.sin(phi) * Math.cos(theta),
+      y: radius * Math.sin(phi) * Math.sin(theta) * 0.6,
+      z: radius * Math.cos(phi),
     };
   });
 
@@ -59,8 +69,8 @@ export function generateNebulaData(cooccurrenceData) {
   console.log(`=== 总诗歌数量: ${Object.keys(poemImages).length} ===`);
   console.log('=== 节点count调试 ===');
 
-  // 过滤阈值：只保留出现次数>=2的核心意象
-  const MIN_COUNT_THRESHOLD = 2;
+  // 过滤阈值：只保留出现次数>=1的核心意象
+  const MIN_COUNT_THRESHOLD = 1;
 
   // 统计被跳过的意象
   const skippedImages = [];
@@ -99,10 +109,12 @@ export function generateNebulaData(cooccurrenceData) {
     // 获取类别中心位置
     const catCenter = categoryPositions[coreImage.category];
 
-    // 在类别中心附近添加随机偏移 - 拉大距离
-    const offsetRadius = 80 + seededRandom() * 120;
+    // 同类节点分散：增大偏移半径，让每个节点围绕类中心均匀散开
+    // 使用均匀分布而非高斯，避免节点过于集中在类中心
+    const offsetRadius = 40 + seededRandom() * 40; // 40-80范围
     const theta = seededRandom() * Math.PI * 2;
-    const phi = seededRandom() * Math.PI;
+    const phi = Math.acos(2 * seededRandom() - 1);
+
     const x = catCenter.x + offsetRadius * Math.sin(phi) * Math.cos(theta);
     const y = catCenter.y + offsetRadius * Math.sin(phi) * Math.sin(theta);
     const z = catCenter.z + offsetRadius * Math.cos(phi);
@@ -207,9 +219,6 @@ export function generateFullNebulaData(cooccurrenceData, extractedData) {
 
   // 创建具体意象节点
   for (const specificImage in specificImageCount) {
-    const coreImage = extractedData.poemImages[Object.keys(extractedData.poemImages)[0]]
-      ?.poem?.content?.[0] ? '' : null;
-
     // 获取对应的核心意象
     let parentCore = null;
     for (const poemId in extractedData.poemImages) {
@@ -243,9 +252,10 @@ export function generateFullNebulaData(cooccurrenceData, extractedData) {
       count,
       poemIds: Array.from(specificImageCount[specificImage]),
       isCore: false,
-      x: 0,
-      y: 0,
-      z: 0,
+      // 细节节点聚集在父节点附近
+      x: parentNode.x + (seededRandom() - 0.5) * 10,
+      y: parentNode.y + (seededRandom() - 0.5) * 10,
+      z: parentNode.z + (seededRandom() - 0.5) * 10,
     };
 
     specificImageNodes[specificImage] = node;

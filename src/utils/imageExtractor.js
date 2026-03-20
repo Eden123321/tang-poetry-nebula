@@ -308,7 +308,7 @@ export function calculateCooccurrence(poems) {
  * @param {string} coreImage - 核心意象
  * @param {Object} imageStats - 意象统计数据
  * @param {Object} poemImages - 每首诗的意象数据
- * @returns {Array} - 相关的诗歌列表
+ * @returns {Array} - 相关的诗歌列表（按知名程度排序）
  */
 export function getRelatedPoems(coreImage, imageStats, poemImages) {
   if (!imageStats[coreImage]) {
@@ -316,7 +316,85 @@ export function getRelatedPoems(coreImage, imageStats, poemImages) {
   }
 
   const poemIds = imageStats[coreImage].poems;
-  return poemIds.map(id => poemImages[id]);
+  const poems = poemIds.map(id => poemImages[id]);
+
+  // 知名诗歌评分系统
+  const famousAuthors = {
+    // 顶级诗人（盛唐代表）
+    '李白': 100, '杜甫': 100, '王维': 95, '白居易': 95,
+    // 次级名家
+    '孟浩然': 85, '王昌龄': 85, '高适': 80, '岑参': 80,
+    '刘禹锡': 80, '韩愈': 80, '柳宗元': 80, '李商隐': 85,
+    '杜牧': 85, '元稹': 75, '贾岛': 70, '韦应物': 75,
+    '张九龄': 75, '王勃': 80, '骆宾王': 70, '宋之问': 65,
+    '沈佺期': 65, '陈子昂': 70, '杜审言': 65,
+    // 中唐诗人
+    '韩翃': 60, '刘长卿': 70, '钱起': 60, '郎士元': 55,
+    '李端': 55, '司空曙': 55, '皎然': 55, '陆羽': 50,
+    // 晚唐
+    '温庭筠': 75, '皮日休': 60, '陆龟蒙': 55, '罗隐': 55,
+    '韦庄': 65, '韩偓': 55, '杜荀鹤': 50,
+    // 其他
+    '张继': 65, '常建': 60, '刘方平': 55, '李益': 60,
+    '戎昱': 50, '戴叔伦': 50, '张籍': 60, '王建': 60,
+    '元结': 55, '卢纶': 55, '李约': 45, '崔署': 45,
+    // 五代/其他
+    '南唐后主': 70, '李煜': 75,
+  };
+
+  // 知名诗词语控（常见的诗题）
+  const famousTitles = [
+    '静夜思', '春晓', '悯农', '相思', '红豆', '相思',
+    '登鹳雀楼', '黄鹤楼送孟浩然之广陵', '使至塞上',
+    '九月九日忆山东兄弟', '送元二使安西', '山居秋暝',
+    '鸟鸣涧', '鹿柴', '竹里馆', '辛夷坞', '漆园',
+    '渭城曲', '阳关三叠', '出塞', '凉州词',
+    '望庐山瀑布', '早发白帝城', '蜀道难', '将进酒',
+    '行路难', '月下独酌', '黄鹤楼', '登金陵凤凰台',
+    '春望', '茅屋为秋风所破歌', '望岳', '春夜喜雨',
+    '蜀相', '登高', '琵琶行', '长恨歌',
+    '回乡偶书', '咏柳', '清明', '清明',
+    '枫桥夜泊', '夜雨寄北', '无题', '锦瑟',
+    '山行', '秋夕', '泊秦淮', '江南春',
+    '望洞庭', '乌衣巷', '石头城', '祭柳员外文',
+  ];
+
+  /**
+   * 计算诗歌知名程度评分
+   * @param {Object} poem - 诗歌对象
+   * @returns {number} - 评分（越高越知名）
+   */
+  const calculateFameScore = (poem) => {
+    let score = 0;
+
+    // 1. 作者评分
+    const authorScore = famousAuthors[poem.author] || 50;
+    score += authorScore;
+
+    // 2. 诗题知名度
+    const titleLower = poem.title.toLowerCase();
+    if (famousTitles.some(t => titleLower.includes(t))) {
+      score += 30;
+    }
+
+    // 3. 诗句数量（绝句/律诗 vs 古体）- 适当加权
+    if (poem.content && poem.content.length === 4) {
+      score += 5; // 绝句
+    } else if (poem.content && poem.content.length === 8) {
+      score += 8; // 律诗
+    } else if (poem.content && poem.content.length > 8) {
+      score += 3; // 古体
+    }
+
+    return score;
+  };
+
+  // 按知名程度降序排序
+  poems.sort((a, b) => {
+    return calculateFameScore(b) - calculateFameScore(a);
+  });
+
+  return poems;
 }
 
 export default { extractImages, calculateCooccurrence, getRelatedPoems };

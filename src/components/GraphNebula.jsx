@@ -2,10 +2,7 @@ import { useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import poems from '../data/poems.json';
-import { calculateCooccurrence, extractImages, getRelatedPoems } from '../utils/imageExtractor';
-import { IMAGE_DICTIONARY } from '../data/imageDictionary';
-import { generateNebulaData } from '../utils/nebulaGenerator';
-import { CORE_IMAGES, getEmotionColor } from '../data/coreImages';
+import cacheData from '../data/cache.json';
 
 // 固定种子随机数生成器
 let seed = 12345;
@@ -14,7 +11,7 @@ function seededRandom() {
   return seed / 233280;
 }
 
-const GraphNebula = ({ onNodeClick, onLineClick }) => {
+const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
   const canvasRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
@@ -30,70 +27,46 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
   const detailLinksRef = useRef([]);
   const nebulaCloudsRef = useRef([]);
 
-  // 提取具体意象数据
+  // 从缓存加载数据（避免每次刷新重新计算）
   const specificImagesData = useMemo(() => {
-    const data = {};
-
-    for (const poem of poems) {
-      const result = extractImages(poem);
-
-      // 按核心意象分组具体意象 - 需要正确建立映射关系
-      // 从 IMAGE_DICTIONARY 获取每个具体意象对应的核心意象
-      for (const specificImage of result.specificImages) {
-        // 使用 IMAGE_DICTIONARY 获取正确的核心意象映射
-        const coreImage = IMAGE_DICTIONARY[specificImage];
-        if (!coreImage) continue;
-
-        if (!data[coreImage]) {
-          data[coreImage] = {};
-        }
-        if (!data[coreImage][specificImage]) {
-          data[coreImage][specificImage] = new Set();
-        }
-        data[coreImage][specificImage].add(poem.id);
-      }
-    }
-
-    // 转换为对象
-    const result = {};
-    for (const core in data) {
-      result[core] = [];
-      for (const specific in data[core]) {
-        result[core].push({
-          name: specific,
-          count: data[core][specific].size,
-          poemIds: Array.from(data[core][specific]),
-        });
-      }
-    }
-
-    return result;
+    return cacheData.specificImagesData || {};
   }, []);
 
-  // 准备主数据
-  const { graphData, metadata, processedData } = useMemo(() => {
-    const extractedData = {};
-    for (const poem of poems) {
-      const result = extractImages(poem);
-      extractedData[poem.id] = result;
+  const graphData = useMemo(() => ({
+    nodes: cacheData.nebulaNodes || [],
+    links: cacheData.nebulaLinks || [],
+  }), []);
+
+  const metadata = useMemo(() => ({
+    totalNodes: cacheData.summary.coreImagesCount,
+    totalLinks: cacheData.summary.linksCount,
+  }), []);
+
+  // 核心意象元数据查找表
+  const coreImagesMetaMap = useMemo(() => {
+    const map = {};
+    if (cacheData.coreImagesMeta) {
+      for (const core of cacheData.coreImagesMeta) {
+        map[core.id] = core;
+      }
     }
-
-    const cooccurrenceData = calculateCooccurrence(poems);
-    const nebulaData = generateNebulaData(cooccurrenceData);
-
-    return {
-      graphData: {
-        nodes: nebulaData.nodes,
-        links: nebulaData.links,
-      },
-      metadata: nebulaData.metadata,
-      processedData: {
-        ...nebulaData,
-        extractedData,
-        cooccurrenceData,
-      },
-    };
+    return map;
   }, []);
+
+  const processedData = useMemo(() => ({
+    nebulaNodes: cacheData.nebulaNodes || [],
+    nebulaLinks: cacheData.nebulaLinks || [],
+    metadata: {
+      imageStats: cacheData.imageStats || {},
+      poemImages: cacheData.poemImages || {},
+      lineCooccurrence: cacheData.lineCooccurrence || {},
+    },
+    cooccurrenceData: {
+      imageStats: cacheData.imageStats || {},
+      poemImages: cacheData.poemImages || {},
+      lineCooccurrence: cacheData.lineCooccurrence || {},
+    },
+  }), []);
 
   // 展开/收起细节层 - 切换激活状态
   const toggleDetailLayer = useCallback((coreNode) => {
@@ -611,9 +584,10 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
   const handleMouseMove = useCallback((event) => {
     const canvas = canvasRef.current;
     const camera = cameraRef.current;
-    const nodes = [...nodesRef.current, ...detailNodesRef.current];
+    const coreNodes = nodesRef.current;
+    const detailNodes = detailNodesRef.current;
 
-    if (!canvas || !camera || nodes.length === 0) return;
+    if (!canvas || !camera || coreNodes.length === 0) return;
 
     const rect = canvas.getBoundingClientRect();
     mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -621,42 +595,40 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
 
     raycasterRef.current.setFromCamera(mouseRef.current, camera);
 
-    // 获取所有mesh用于检测
-    const allMeshes = [];
-    nodes.forEach(node => {
-      // 处理核心节点（Group）
-      if (node.traverse) {
-        // 检查是否是细节节点组（包含 invisible mesh）
-        if (node.userData && node.userData.isDetail) {
-          // 细节节点组，找到不可见的检测Mesh
+    // 核心节点检测 - 始终检测
+    const coreMeshes = [];
+    coreNodes.forEach(node => {
+      node.traverse(child => {
+        if (child.isMesh) {
+          child.parentNode = node;
+          coreMeshes.push(child);
+        }
+      });
+    });
+
+    // 细节节点检测 - 仅当有核心节点被展开时检测
+    let detailMeshes = [];
+    if (expandedCore) {
+      detailNodes.forEach(node => {
+        if (node.userData && node.userData.parentCore === expandedCore) {
           node.traverse(child => {
             if (child.isMesh && child.material.visible === false) {
               child.parentNode = node;
-              allMeshes.push(child);
-            }
-          });
-        } else {
-          // 核心节点
-          node.traverse(child => {
-            if (child.isMesh) {
-              child.parentNode = node;
-              allMeshes.push(child);
+              detailMeshes.push(child);
             }
           });
         }
-      }
-      // 处理细节节点（直接是Sprite）- 备用
-      else if (node.isSprite) {
-        node.parentNode = node;
-        allMeshes.push(node);
-      }
-    });
+      });
+    }
 
-    const intersects = raycasterRef.current.intersectObjects(allMeshes);
+    // 优先检测细节节点（如果已展开），否则检测核心节点
+    const intersects = detailMeshes.length > 0
+      ? raycasterRef.current.intersectObjects(detailMeshes)
+      : raycasterRef.current.intersectObjects(coreMeshes);
+
     let hoveredGroup = null;
     if (intersects.length > 0) {
       const hit = intersects[0].object;
-      // 如果是 Sprite（没有 traverse 方法），直接使用自身
       if (hit.isSprite) {
         hoveredGroup = hit;
       } else {
@@ -675,7 +647,7 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
         canvas.style.cursor = 'grab';
       }
     }
-  }, [hoveredNode]);
+  }, [hoveredNode, expandedCore]);
 
   // 处理鼠标点击
   const handleClick = useCallback((event) => {
@@ -758,9 +730,21 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
         }
         selectedNodeRef.current = clickedGroup;
 
-        // 如果点击的是核心节点，展开细节层
+        // 如果点击的是核心节点，展开/收起细节层
         if (clickedNode.userData.isCore) {
           toggleDetailLayer(clickedGroup);
+        }
+
+        // 如果点击的是细节节点，需要确保其父核心节点已展开
+        if (clickedNode.userData.isDetail && clickedNode.userData.parentCore) {
+          const parentCoreId = clickedNode.userData.parentCore;
+          // 如果父核心节点没有展开，先展开它
+          if (expandedCore !== parentCoreId) {
+            const parentCoreNode = nodesRef.current.find(n => n.userData.id === parentCoreId);
+            if (parentCoreNode) {
+              toggleDetailLayer(parentCoreNode);
+            }
+          }
         }
 
         // 获取相关诗歌
@@ -786,20 +770,20 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
 
           // 如果仍然没有找到，尝试核心节点的方式
           if (relatedPoems.length === 0) {
-            relatedPoems = getRelatedPoems(
-              clickedNode.userData.id,
-              cooccurrenceData.imageStats,
-              cooccurrenceData.poemImages
-            ).map(p => p.poem);
+            const stats = cooccurrenceData.imageStats[clickedNode.userData.id];
+            if (stats) {
+              relatedPoems = Array.from(stats.poems || [])
+                .map(id => cooccurrenceData.poemImages[id]?.poem)
+                .filter(Boolean);
+            }
           }
 
           // 计算相关意象（与当前意象共现的意象）
           const relatedImages = [];
           const currentId = clickedNode.userData.id || clickedNode.userData.name;
 
-          // 从CORE_IMAGES中查找当前意象的颜色
-          const currentCore = CORE_IMAGES.find(c => c.id === currentId || c.name === currentId);
-          const currentColor = currentCore ? getEmotionColor(currentCore.emotion) : '#888';
+          // 获取当前意象的颜色
+          const currentColor = clickedNode.userData.color || '#888';
 
           // 查找与当前意象共现的其他意象
           // lineCooccurrence 结构是 { "img1-img2": { img1, img2, count } }
@@ -820,11 +804,11 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
               // 如果找到相关意象，获取其情绪颜色
               if (targetId && !relatedSet.has(targetId)) {
                 relatedSet.add(targetId);
-                const targetCore = CORE_IMAGES.find(c => c.id === targetId || c.name === targetId);
+                const targetCore = coreImagesMetaMap[targetId];
                 if (targetCore) {
                   relatedImages.push({
                     name: targetCore.name,
-                    color: getEmotionColor(targetCore.emotion)
+                    color: targetCore.color
                   });
                 }
               }
@@ -842,6 +826,19 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
         }
         return; // 点击了节点，不再处理连线
       }
+    }
+
+    // 点击空白处：收起细节层并关闭面板
+    if (expandedCore) {
+      // 收起当前展开的核心节点
+      const expandedCoreNode = nodesRef.current.find(n => n.userData.id === expandedCore);
+      if (expandedCoreNode) {
+        toggleDetailLayer(expandedCoreNode);
+      }
+    }
+    // 关闭右侧面板
+    if (onClosePanel) {
+      onClosePanel();
     }
 
     // 节点未点击到，检测连线点击
@@ -862,7 +859,7 @@ const GraphNebula = ({ onNodeClick, onLineClick }) => {
         }
       }
     }
-  }, [onNodeClick, onLineClick, processedData, toggleDetailLayer]);
+  }, [onNodeClick, onLineClick, processedData, toggleDetailLayer, expandedCore]);
 
   // 绑定事件
   useEffect(() => {
