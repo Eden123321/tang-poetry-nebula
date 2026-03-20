@@ -514,7 +514,49 @@ for (const core in specificImagesData) {
 
 console.log(`  完成，共 ${Object.keys(specificImagesArray).length} 个核心意象有细节节点`);
 
-// 5. 写入JSON
+// 5. 转换数据：将 Set 转换为数组
+console.log('\n[5/5] 转换数据格式...');
+
+// 转换 imageStats 中的 Set 为数组
+const imageStatsConverted = {};
+for (const img in imageStats) {
+  imageStatsConverted[img] = {
+    count: imageStats[img].count,
+    poems: Array.from(imageStats[img].poems),
+    lines: imageStats[img].lines,
+  };
+}
+
+// 转换 poemImages 中的 Set 为数组
+const poemImagesConverted = {};
+for (const id in poemImages) {
+  poemImagesConverted[id] = poemImages[id];
+}
+
+// 转换 cooccurrence 中的 Set 为数组
+const cooccurrenceConverted = {};
+for (const key in cooccurrence) {
+  cooccurrenceConverted[key] = {
+    img1: cooccurrence[key].img1,
+    img2: cooccurrence[key].img2,
+    count: cooccurrence[key].count,
+    poems: Array.from(cooccurrence[key].poems),
+  };
+}
+
+// 转换 lineCooccurrence 中的 Set 为数组
+const lineCooccurrenceConverted = {};
+for (const key in lineCooccurrence) {
+  lineCooccurrenceConverted[key] = {
+    img1: lineCooccurrence[key].img1,
+    img2: lineCooccurrence[key].img2,
+    count: lineCooccurrence[key].count,
+    poems: Array.from(lineCooccurrence[key].poems),
+    lines: lineCooccurrence[key].lines,
+  };
+}
+
+// 6. 写入JSON
 const cacheData = {
   version: '1.0.0',
   generatedAt: new Date().toISOString(),
@@ -523,10 +565,10 @@ const cacheData = {
     coreImagesCount: nodes.length,
     linksCount: links.length,
   },
-  imageStats,
-  poemImages,
-  cooccurrence,
-  lineCooccurrence,
+  imageStats: imageStatsConverted,
+  poemImages: poemImagesConverted,
+  cooccurrence: cooccurrenceConverted,
+  lineCooccurrence: lineCooccurrenceConverted,
   nebulaNodes: nodes,
   nebulaLinks: links,
   coreImagesMeta: CORE_IMAGES.map(c => ({
