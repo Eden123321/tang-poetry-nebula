@@ -295,7 +295,7 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
 
       const parentPos = coreNode.position;
       const baseColor = coreNode.userData.color;
-      const count = Math.min(specifics.length, 10);
+      const count = specifics.length;
 
       for (let i = 0; i < count; i++) {
         const specific = specifics[i];

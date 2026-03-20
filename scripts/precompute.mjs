@@ -11,6 +11,24 @@ const rootDir = path.join(__dirname, '..');
 
 // ==================== 数据 ====================
 const poemsData = JSON.parse(fs.readFileSync(path.join(rootDir, 'src/data/poems.json'), 'utf8'));
+const keywordsData = JSON.parse(fs.readFileSync(path.join(rootDir, 'src/data/keywords.json'), 'utf8'));
+const ALL_KEYWORDS = keywordsData.keywords; // 400+ 关键词列表
+
+// 导入 IMAGE_DICTIONARY（用于建立具体意象到核心意象的映射）
+const imageDictionaryPath = path.join(rootDir, 'src/data/imageDictionary.js');
+const imageDictionaryContent = fs.readFileSync(imageDictionaryPath, 'utf8');
+// 提取 IMAGE_DICTIONARY 对象
+const IMAGE_DICTIONARY = {};
+const dictMatch = imageDictionaryContent.match(/export\s+const\s+IMAGE_DICTIONARY\s*=\s*\{([\s\S]*?)\};/);
+if (dictMatch) {
+  const dictContent = dictMatch[1];
+  // 解析键值对
+  const pairs = dictContent.matchAll(/'([^']+)':\s*'([^']+)'/g);
+  for (const match of pairs) {
+    IMAGE_DICTIONARY[match[1]] = match[2];
+  }
+}
+console.log(`  导入 IMAGE_DICTIONARY: ${Object.keys(IMAGE_DICTIONARY).length} 条映射`);
 
 // 情绪颜色
 const EMOTION_COLORS = {
@@ -127,6 +145,28 @@ const CORE_IMAGES = [
 
 // 核心意象Set
 const coreImageSet = new Set(CORE_IMAGES.map(img => img.id));
+
+// 构建关键词到核心意象的映射（用于匹配400+关键词）
+const keywordToCoreMap = {};
+for (const core of CORE_IMAGES) {
+  // 核心意象本身也是关键词
+  keywordToCoreMap[core.name] = core;
+}
+
+// 添加 IMAGE_DICTIONARY 中的映射
+for (const [specific, coreId] of Object.entries(IMAGE_DICTIONARY)) {
+  if (!keywordToCoreMap[specific]) {
+    const core = CORE_IMAGES.find(c => c.id === coreId);
+    if (core) {
+      keywordToCoreMap[specific] = core;
+    }
+  }
+}
+console.log(`  关键词到核心意象映射: ${Object.keys(keywordToCoreMap).length} 个`);
+
+// 额外关键词：那些映射到核心意象的具体意象
+// 从 coreImages.js 的 IMAGE_DICTIONARY 导出中提取（这里我们直接用 keywords.json 中的其他词）
+// keywords.json 已经包含了所有需要匹配的关键词
 
 // 简化的繁→简映射（只处理最常见的）
 const traditionalToSimplified = {
@@ -270,12 +310,13 @@ const specificImageToCore = {};
 for (const poem of poemsData) {
   for (const line of poem.content || []) {
     const simplified = toSimplified(line);
-    // 检查每个核心意象是否出现在诗句中
-    for (const core of CORE_IMAGES) {
-      if (simplified.includes(core.name)) {
-        foundSpecificImages.add(core.name);
-        if (!specificImageToCore[core.name]) {
-          specificImageToCore[core.name] = core;
+    // 使用400+关键词进行匹配
+    for (const keyword of ALL_KEYWORDS) {
+      if (simplified.includes(keyword)) {
+        foundSpecificImages.add(keyword);
+        // 找到该关键词对应的核心意象
+        if (!specificImageToCore[keyword] && keywordToCoreMap[keyword]) {
+          specificImageToCore[keyword] = keywordToCoreMap[keyword];
         }
       }
     }
@@ -301,12 +342,19 @@ for (const poem of poemsData) {
     const lineSpecifics = [];
     const lineCores = [];
 
-    for (const core of CORE_IMAGES) {
-      if (simplified.includes(core.name)) {
-        lineSpecifics.push(core.name);
-        lineCores.push(core.id);
-        specificImages.add(core.name);
-        coreImages.add(core.id);
+    // 使用400+关键词进行匹配
+    for (const keyword of ALL_KEYWORDS) {
+      if (simplified.includes(keyword)) {
+        lineSpecifics.push(keyword);
+        specificImages.add(keyword);
+        // 如果该关键词映射到核心意象
+        if (keywordToCoreMap[keyword]) {
+          const coreId = keywordToCoreMap[keyword].id;
+          if (!lineCores.includes(coreId)) {
+            lineCores.push(coreId);
+            coreImages.add(coreId);
+          }
+        }
       }
     }
 
@@ -489,14 +537,18 @@ const specificImagesData = {};
 for (const poemId in poemImages) {
   const data = poemImages[poemId];
   for (const specific of data.specificImages) {
-    const coreImage = specific; // 简化：具体意象名就是核心意象名
-    if (!specificImagesData[coreImage]) {
-      specificImagesData[coreImage] = {};
+    // 查找该关键词对应的核心意象
+    const coreImage = keywordToCoreMap[specific];
+    if (!coreImage) continue; // 如果没有对应的核心意象，跳过
+
+    const coreId = coreImage.id;
+    if (!specificImagesData[coreId]) {
+      specificImagesData[coreId] = {};
     }
-    if (!specificImagesData[coreImage][specific]) {
-      specificImagesData[coreImage][specific] = new Set();
+    if (!specificImagesData[coreId][specific]) {
+      specificImagesData[coreId][specific] = new Set();
     }
-    specificImagesData[coreImage][specific].add(poemId);
+    specificImagesData[coreId][specific].add(poemId);
   }
 }
 
