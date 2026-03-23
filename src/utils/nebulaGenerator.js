@@ -48,9 +48,9 @@ export function generateNebulaData(cooccurrenceData) {
   const categories = Object.keys(categoryGroups);
   const categoryPositions = {};
 
-  // 类别中心分布：球壳半径120-180
-  const CATEGORY_RADIUS_MIN = 120;
-  const CATEGORY_RADIUS_MAX = 180;
+  // 类别中心分布：球壳半径160-220
+  const CATEGORY_RADIUS_MIN = 160;
+  const CATEGORY_RADIUS_MAX = 220;
 
   const goldenRatio = (1 + Math.sqrt(5)) / 2;
   categories.forEach((cat, idx) => {

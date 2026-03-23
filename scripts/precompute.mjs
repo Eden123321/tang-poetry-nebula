@@ -448,8 +448,8 @@ for (const core of CORE_IMAGES) {
 
 const categories = Object.keys(categoryGroups);
 const categoryPositions = {};
-const CATEGORY_RADIUS_MIN = 120;
-const CATEGORY_RADIUS_MAX = 180;
+const CATEGORY_RADIUS_MIN = 160;
+const CATEGORY_RADIUS_MAX = 220;
 const goldenRatio = (1 + Math.sqrt(5)) / 2;
 
 categories.forEach((cat, idx) => {

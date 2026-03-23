@@ -182,7 +182,7 @@ const PoetryPanel = ({ node, poems, relatedImages, onClose }) => {
         padding: '10px 20px 20px',
       }}>
         {poems && poems.length > 0 ? (
-          poems.slice(0, 10).map((poem, index) => (
+          poems.map((poem, index) => (
             <div
               key={poem.id || index}
               style={{
