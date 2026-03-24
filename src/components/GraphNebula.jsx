@@ -21,6 +21,7 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
   const nodesRef = useRef([]);
   const linksRef = useRef([]);
   const selectedNodeRef = useRef(null);
+  const cameraTargetRef = useRef(null); // 相机目标位置
   const [hoveredNode, setHoveredNode] = useState(null);
   const [expandedCore, setExpandedCore] = useState(null);
   const detailNodesRef = useRef([]);
@@ -295,6 +296,8 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
 
       const parentPos = coreNode.position;
       const baseColor = coreNode.userData.color;
+      const coreEmotion = coreNode.userData.emotion;
+      const coreCategory = coreNode.userData.category;
       const count = specifics.length;
 
       for (let i = 0; i < count; i++) {
@@ -331,6 +334,8 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
           parentCore: coreId,
           color: baseColor, // 添加color字段用于面板显示
           baseColor: baseColor,
+          emotion: coreEmotion,
+          category: coreCategory,
           originalOpacity: 0.3,
         };
         sprite.visible = true;
@@ -558,6 +563,31 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
         cloudGroup.scale.set(scale, scale, scale);
       });
 
+      // 相机自动移动到目标位置（平滑动画，节点在画面中心）
+      if (cameraTargetRef.current) {
+        const target = cameraTargetRef.current;
+        const distance = camera.position.distanceTo(target);
+        const minDistance = 65; // 最小距离
+
+        if (distance > minDistance + 5) {
+          // 平滑移动controls.target到目标位置
+          controls.target.lerp(target, 0.08);
+
+          // 调整相机位置，保持在最小距离处
+          const direction = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
+          const newCameraPos = controls.target.clone().addScaledVector(direction, minDistance);
+          camera.position.lerp(newCameraPos, 0.08);
+        } else if (distance < minDistance - 5) {
+          // 相机太近了，后退
+          const direction = new THREE.Vector3().subVectors(camera.position, target).normalize();
+          camera.position.addScaledVector(direction, (minDistance - distance) * 0.1);
+        } else {
+          // 到达目标距离，停止动画
+          controls.target.copy(target);
+          cameraTargetRef.current = null;
+        }
+      }
+
       controls.update();
       renderer.render(scene, camera);
     };
@@ -595,11 +625,11 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
 
     raycasterRef.current.setFromCamera(mouseRef.current, camera);
 
-    // 核心节点检测 - 始终检测
+    // 核心节点检测 - 始终检测（与点击检测一致）
     const coreMeshes = [];
     coreNodes.forEach(node => {
       node.traverse(child => {
-        if (child.isMesh) {
+        if (child.isMesh || child.isSprite) {
           child.parentNode = node;
           coreMeshes.push(child);
         }
@@ -621,15 +651,23 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
       });
     }
 
-    // 优先检测细节节点（如果已展开），否则检测核心节点
-    const intersects = detailMeshes.length > 0
-      ? raycasterRef.current.intersectObjects(detailMeshes)
-      : raycasterRef.current.intersectObjects(coreMeshes);
+    // 先检测细节节点（如果已展开且有交点），否则检测核心节点
+    let intersects = [];
+    if (detailMeshes.length > 0) {
+      intersects = raycasterRef.current.intersectObjects(detailMeshes);
+    }
+    // 如果没有命中细节节点，检测核心节点
+    if (intersects.length === 0) {
+      intersects = raycasterRef.current.intersectObjects(coreMeshes);
+    }
 
     let hoveredGroup = null;
     if (intersects.length > 0) {
       const hit = intersects[0].object;
-      if (hit.isSprite) {
+      // 与点击检测保持一致：如果Sprite有父级Group，使用父级
+      if (hit.isSprite && hit.parent && hit.parent.isGroup) {
+        hoveredGroup = hit.parent;
+      } else if (hit.isSprite) {
         hoveredGroup = hit;
       } else {
         hoveredGroup = hit.parentNode;
@@ -735,52 +773,63 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
           toggleDetailLayer(clickedGroup);
         }
 
-        // 如果点击的是细节节点，需要确保其父核心节点已展开
-        if (clickedNode.userData.isDetail && clickedNode.userData.parentCore) {
-          const parentCoreId = clickedNode.userData.parentCore;
-          // 如果父核心节点没有展开，先展开它
-          if (expandedCore !== parentCoreId) {
-            const parentCoreNode = nodesRef.current.find(n => n.userData.id === parentCoreId);
-            if (parentCoreNode) {
-              toggleDetailLayer(parentCoreNode);
-            }
-          }
-        }
+        // 如果点击的是细节节点且细节层未展开，不自动展开，只显示核心意象详情
+        // 只有当细节层已经展开（expandedCore === parentCore）时，才显示细节意象详情
+        // 这个逻辑在后面获取诗歌时通过 isDetailExpanded 变量处理
 
         // 获取相关诗歌
         let relatedPoems = [];
         if (processedData && processedData.cooccurrenceData) {
           const { cooccurrenceData } = processedData;
 
-          // 如果点击的是具体节点，直接使用 poemIds 获取诗歌
-          if (clickedNode.userData.isDetail && clickedNode.userData.poemIds && clickedNode.userData.poemIds.length > 0) {
-            relatedPoems = clickedNode.userData.poemIds
-              .map(id => cooccurrenceData.poemImages[id]?.poem)
-              .filter(Boolean);
-          } else if (clickedNode.userData.isDetail) {
-            // 如果 poemIds 为空，尝试根据节点名称查找
-            const nodeName = clickedNode.userData.name;
-            for (const poemId in cooccurrenceData.poemImages) {
-              const poemData = cooccurrenceData.poemImages[poemId];
-              if (poemData.specificImages && poemData.specificImages.includes(nodeName)) {
-                relatedPoems.push(poemData.poem);
-              }
-            }
-          }
+          // 判断是否应该显示细节节点的详情
+          // 只有当细节层已展开（expandedCore === 当前细节的父核心）时，才显示细节详情
+          const isDetailNode = clickedNode.userData.isDetail;
+          const isDetailExpanded = isDetailNode && expandedCore === clickedNode.userData.parentCore;
 
-          // 如果仍然没有找到，尝试核心节点的方式
-          if (relatedPoems.length === 0) {
+          // 如果点击的是具体节点，且细节层已展开，使用细节节点的 poemIds
+          if (isDetailNode && isDetailExpanded && clickedNode.userData.poemIds && clickedNode.userData.poemIds.length > 0) {
+            relatedPoems = clickedNode.userData.poemIds
+              .slice(0, 100) // 限制最多100首
+              .map(id => {
+                const poemData = cooccurrenceData.poemImages[id];
+                return poemData ? { ...poemData.poem, fameScore: poemData.fameScore || 0 } : null;
+              })
+              .filter(Boolean);
+          } else if (isDetailNode) {
+            // 点击细节节点但未展开时：使用 detail 节点自己的 poemIds（已预计算）
+            if (clickedNode.userData.poemIds && clickedNode.userData.poemIds.length > 0) {
+              relatedPoems = clickedNode.userData.poemIds
+                .slice(0, 100) // 限制最多100首
+                .map(id => {
+                  const poemData = cooccurrenceData.poemImages[id];
+                  return poemData ? { ...poemData.poem, fameScore: poemData.fameScore || 0 } : null;
+                })
+                .filter(Boolean);
+            }
+          } else {
+            // 核心节点：使用 core 节点的 poemIds
             const stats = cooccurrenceData.imageStats[clickedNode.userData.id];
-            if (stats) {
-              relatedPoems = Array.from(stats.poems || [])
-                .map(id => cooccurrenceData.poemImages[id]?.poem)
+            if (stats && stats.poems && stats.poems.length > 0) {
+              relatedPoems = stats.poems
+                .slice(0, 100) // 限制最多100首
+                .map(id => {
+                  const poemData = cooccurrenceData.poemImages[id];
+                  return poemData ? { ...poemData.poem, fameScore: poemData.fameScore || 0 } : null;
+                })
                 .filter(Boolean);
             }
           }
 
+          // 对诗歌按知名程度排序（使用预计算的 fameScore）
+          relatedPoems.sort((a, b) => b.fameScore - a.fameScore);
+
           // 计算相关意象（与当前意象共现的意象）
           const relatedImages = [];
-          const currentId = clickedNode.userData.id || clickedNode.userData.name;
+          // 如果点击的是细节节点但未展开，使用父核心节点的 id
+          const currentId = (isDetailNode && !isDetailExpanded)
+            ? clickedNode.userData.parentCore
+            : clickedNode.userData.id || clickedNode.userData.name;
 
           // 获取当前意象的颜色
           const currentColor = clickedNode.userData.color || '#888';
@@ -816,8 +865,13 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
           }
 
           if (onNodeClick) {
+            // 如果点击的是未展开的细节节点，使用父核心节点的 userData
+            const nodeData = (isDetailNode && !isDetailExpanded)
+              ? nodesRef.current.find(n => n.userData.id === clickedNode.userData.parentCore)?.userData || clickedNode.userData
+              : clickedNode.userData;
+
             onNodeClick({
-              node: clickedNode.userData,
+              node: nodeData,
               relatedPoems,
               relatedImages,
               currentColor,
@@ -861,18 +915,104 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
     }
   }, [onNodeClick, onLineClick, processedData, toggleDetailLayer, expandedCore]);
 
+  // 处理鼠标双击（跳转）
+  const handleDblClick = useCallback((event) => {
+    const canvas = canvasRef.current;
+    const camera = cameraRef.current;
+    const nodes = [...nodesRef.current, ...detailNodesRef.current];
+
+    if (!canvas || !camera) return;
+
+    const rect = canvas.getBoundingClientRect();
+    mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    raycasterRef.current.setFromCamera(mouseRef.current, camera);
+
+    // 检测节点
+    if (nodes.length > 0) {
+      const allObjects = [];
+      nodes.forEach(node => {
+        if (node.isGroup || node.traverse) {
+          if (node.userData && node.userData.isDetail) {
+            node.traverse(child => {
+              if (child.isMesh && child.material.visible === false) {
+                child.parentNode = node;
+                allObjects.push(child);
+              }
+            });
+          } else {
+            node.traverse(child => {
+              if (child.isMesh || child.isSprite) {
+                child.parentNode = node;
+                allObjects.push(child);
+              }
+            });
+          }
+        } else if (node.isSprite || node.isMesh) {
+          node.parentNode = node;
+          allObjects.push(node);
+        }
+      });
+
+      const intersects = raycasterRef.current.intersectObjects(allObjects);
+      if (intersects.length > 0) {
+        const hit = intersects[0].object;
+        let clickedGroup = null;
+        if (hit.isSprite && hit.parent && hit.parent.isGroup) {
+          clickedGroup = hit.parent;
+        } else if (hit.isSprite) {
+          clickedGroup = hit;
+        } else {
+          clickedGroup = hit.parentNode;
+        }
+
+        if (clickedGroup && clickedGroup.userData) {
+          // 恢复之前选中的节点颜色
+          if (selectedNodeRef.current) {
+            const prevCoreMesh = selectedNodeRef.current.children.find(c => c.isMesh && c.geometry.type === 'SphereGeometry' && c.geometry.parameters.radius < 10);
+            if (prevCoreMesh) {
+              prevCoreMesh.material.color.setStyle(selectedNodeRef.current.userData.color);
+            }
+          }
+
+          // 高亮选中的节点
+          const newCoreMesh = clickedGroup.children.find(c => c.isMesh && c.geometry.type === 'SphereGeometry' && c.geometry.parameters.radius < 10);
+          if (newCoreMesh) {
+            newCoreMesh.material.color.setHex(0xffffff);
+          }
+          selectedNodeRef.current = clickedGroup;
+
+          // 设置相机目标位置（跳转）
+          if (clickedGroup.userData.isDetail && clickedGroup.userData.parentCore) {
+            const parentCoreNode = nodesRef.current.find(n => n.userData.id === clickedGroup.userData.parentCore);
+            if (parentCoreNode) {
+              cameraTargetRef.current = parentCoreNode.position.clone();
+            }
+          } else {
+            cameraTargetRef.current = clickedGroup.position.clone();
+          }
+        }
+      }
+    }
+  }, []);
+
   // 绑定事件
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // 单击：进入细节节点（展开/切换）
     canvas.addEventListener('click', handleClick);
+    // 双击：跳转（相机移动）
+    canvas.addEventListener('dblclick', handleDblClick);
     canvas.addEventListener('mousemove', handleMouseMove);
     return () => {
       canvas.removeEventListener('click', handleClick);
+      canvas.removeEventListener('dblclick', handleDblClick);
       canvas.removeEventListener('mousemove', handleMouseMove);
     };
-  }, [handleClick, handleMouseMove]);
+  }, [handleClick, handleDblClick, handleMouseMove]);
 
   return (
     <>

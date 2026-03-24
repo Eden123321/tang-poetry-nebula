@@ -30,6 +30,81 @@ if (dictMatch) {
 }
 console.log(`  导入 IMAGE_DICTIONARY: ${Object.keys(IMAGE_DICTIONARY).length} 条映射`);
 
+// ==================== 意象过滤规则 ====================
+
+// 黑名单：不能作为意象节点的词
+const IMAGE_BLACKLIST = [
+  // 功能词/助词
+  '之', '其', '亦', '乃', '而', '且', '于', '以', '为', '乎', '焉', '哉', '矣', '兮', '邪',
+  // 方位词
+  '中', '里', '间', '上', '下', '前', '后', '内', '外', '旁',
+  // 伪具象词（修饰语）
+  '孤', '清', '远', '长', '深', '空', '淡', '静', '幽',
+  '暮', '晓', '寒', '暖', '明', '暗', '高', '低', '近',
+  // 抽象词
+  '愁', '思', '情', '意', '梦', '恨', '怨', '怜', '悲', '欢',
+  '喜', '怒', '惊', '恐', '爱', '憎', '慕', '羡',
+  // 数词
+  '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '百', '千', '万', '亿',
+  // 代词
+  '我', '汝', '尔', '子', '谁', '何', '孰', '彼', '此',
+  // 量词
+  '个', '只', '片', '枝', '朵', '杯', '盏', '觞', '斝',
+  // 时间词
+  '昔', '今', '古', '往', '来', '岁', '时', '辰', '旦',
+];
+
+// 只在复合词中出现的词（单独出现时不算）
+const COMPOUND_ONLY_WORDS = [
+  '孤', '清', '远', '长', '深', '空', '淡', '静', '幽',
+  '暮', '晓', '寒', '暖', '明', '暗', '高', '低', '近',
+];
+
+// 上下文排除规则
+const CONTEXT_EXCLUSIONS = [
+  { pattern: '虽{word}', exclude: ['云', '乃', '亦', '何'] },
+  { pattern: '乃{word}', exclude: ['云', '曰', '亦', '何'] },
+  { pattern: '亦{word}', exclude: ['云', '乃', '何', '其'] },
+  { pattern: '谁{word}', exclude: ['云', '曰', '其', '何'] },
+  { pattern: '何{word}', exclude: ['云', '其', '之'] },
+  { pattern: '岂{word}', exclude: ['云', '曰', '其', '亦'] },
+  { pattern: '况{word}', exclude: ['云', '乃', '其'] },
+  { pattern: '不{word}', exclude: ['云', '之'] },
+  { pattern: '莫{word}', exclude: ['云', '之', '其'] },
+  { pattern: '所{word}', exclude: ['云', '之', '何'] },
+  { pattern: '{word}曰', exclude: ['曰', '云'] },
+  { pattern: '{word}谓', exclude: ['谓', '云'] },
+  { pattern: '之{word}', exclude: ['之', '云', '曰'] },
+  { pattern: '其{word}', exclude: ['其', '云', '之', '曰'] },
+  { pattern: '犹{word}', exclude: ['犹', '且', '云'] },
+  { pattern: '尚{word}', exclude: ['尚', '犹', '云'] },
+  { pattern: '则{word}', exclude: ['则', '云', '曰'] },
+  { pattern: '{word}之', exclude: ['之'] },
+  { pattern: '{word}然', exclude: ['然'] },
+  { pattern: '{word}而', exclude: ['而'] },
+  { pattern: '{word}焉', exclude: ['焉'] },
+  { pattern: '{word}哉', exclude: ['哉'] },
+  { pattern: '{word}矣', exclude: ['矣'] },
+  { pattern: '{word}兮', exclude: ['兮'] },
+  { pattern: '一{word}', exclude: ['一', '何'] },
+  { pattern: '{word}何', exclude: ['一', '云', '日', '何'] },
+  { pattern: '有{word}', exclude: ['有', '云'] },
+  { pattern: '无{word}', exclude: ['无', '云'] },
+];
+
+// 检查一个词是否在特定上下文中被排除
+function isExcludedByContext(word, line) {
+  for (const rule of CONTEXT_EXCLUSIONS) {
+    const regexPattern = rule.pattern.replace('{word}', word);
+    if (line.includes(regexPattern)) {
+      if (rule.exclude.includes(word)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 // 情绪颜色
 const EMOTION_COLORS = {
   '思乡': '#4A90D9',
@@ -172,6 +247,7 @@ console.log(`  关键词到核心意象映射: ${Object.keys(keywordToCoreMap).l
 const traditionalToSimplified = {
   '詩': '诗', '語': '语', '詞': '词', '識': '识', '說': '说',
   '為': '为', '無': '无', '見': '见', '間': '间', '關': '关',
+  '誰': '谁', '雲': '云', '誰': '谁', '雖': '虽',
   '門': '门', '開': '开', '聞': '闻', '問': '问', '學': '学',
   '國': '国', '圖': '图', '園': '园', '環': '环', '處': '处',
   '雲': '云', '電': '电', '風': '风', '飛': '飞',
@@ -312,6 +388,11 @@ for (const poem of poemsData) {
     const simplified = toSimplified(line);
     // 使用400+关键词进行匹配
     for (const keyword of ALL_KEYWORDS) {
+      // 跳过黑名单词
+      if (IMAGE_BLACKLIST.includes(keyword)) continue;
+      // 跳过上下文排除的词
+      if (isExcludedByContext(keyword, simplified)) continue;
+
       if (simplified.includes(keyword)) {
         foundSpecificImages.add(keyword);
         // 找到该关键词对应的核心意象
@@ -339,14 +420,48 @@ for (const poem of poemsData) {
 
   for (const line of poem.content || []) {
     const simplified = toSimplified(line);
-    const lineSpecifics = [];
-    const lineCores = [];
 
-    // 使用400+关键词进行匹配
+    // 第一步：找出所有匹配的关键词
+    const allMatchedKeywords = [];
     for (const keyword of ALL_KEYWORDS) {
       if (simplified.includes(keyword)) {
+        allMatchedKeywords.push(keyword);
+      }
+    }
+
+    // 第二步：长词优先匹配，短词被长词包含时跳过
+    // 例如："花开" 匹配后，"花" 就不能再匹配了
+    allMatchedKeywords.sort((a, b) => b.length - a.length);
+
+    const lineSpecifics = [];
+    const lineCores = [];
+    const matchedStrings = []; // 记录已匹配的词
+
+    for (const keyword of allMatchedKeywords) {
+      // 第一层过滤：检查黑名单
+      if (IMAGE_BLACKLIST.includes(keyword)) {
+        continue; // 跳过黑名单词
+      }
+
+      // 第二层过滤：检查上下文排除
+      if (isExcludedByContext(keyword, simplified)) {
+        continue; // 在特定上下文中被排除
+      }
+
+      // 第三层：检查这个词是否被已匹配的更长词包含
+      let isSubstringOfMatched = false;
+      for (const matched of matchedStrings) {
+        if (matched.length > keyword.length && matched.includes(keyword)) {
+          isSubstringOfMatched = true;
+          break;
+        }
+      }
+
+      if (!isSubstringOfMatched) {
         lineSpecifics.push(keyword);
+        matchedStrings.push(keyword);
         specificImages.add(keyword);
+
         // 如果该关键词映射到核心意象
         if (keywordToCoreMap[keyword]) {
           const coreId = keywordToCoreMap[keyword].id;
@@ -367,12 +482,60 @@ for (const poem of poemsData) {
     }
   }
 
+  // 计算诗歌知名度分数（预计算，用于排序优化）
+  const famousAuthors = {
+    '李白': 100, '杜甫': 100, '王维': 95, '白居易': 95,
+    '孟浩然': 85, '王昌龄': 85, '高适': 80, '岑参': 80,
+    '刘禹锡': 80, '韩愈': 80, '柳宗元': 80, '李商隐': 85,
+    '杜牧': 85, '元稹': 75, '贾岛': 70, '韦应物': 75,
+    '张九龄': 75, '王勃': 80, '骆宾王': 70, '宋之问': 65,
+    '沈佺期': 65, '陈子昂': 70, '杜审言': 65,
+  };
+  const famousTitles = [
+    '静夜思', '春晓', '悯农', '相思', '红豆',
+    '登鹳雀楼', '黄鹤楼送孟浩然之广陵', '使至塞上',
+    '九月九日忆山东兄弟', '送元二使安西', '山居秋暝',
+    '望庐山瀑布', '早发白帝城', '蜀道难', '将进酒',
+  ];
+  const famousLinesSet = new Set([
+    '床前明月光', '疑是地上霜', '举头望明月', '低头思故乡',
+    '春眠不觉晓', '处处闻啼鸟', '夜来风雨声', '花落知多少',
+    '白日依山尽', '黄河入海流', '欲穷千里目', '更上一层楼',
+    '千山鸟飞绝', '万径人踪灭', '孤舟蓑笠翁', '独钓寒江雪',
+  ]);
+
+  const calcFameScore = (p) => {
+    let score = 0;
+    // 知名诗句匹配
+    if (p.content) {
+      for (const line of p.content) {
+        if (famousLinesSet.has(line)) {
+          score += 100;
+          break; // 只加一次
+        }
+      }
+    }
+    // 作者评分
+    if (p.author && famousAuthors[p.author]) {
+      score += famousAuthors[p.author];
+    }
+    // 知名诗题
+    if (p.title && famousTitles.some(t => p.title.includes(t))) {
+      score += 30;
+    }
+    // 诗句数量（绝句+5，七律+8）
+    if (p.content && p.content.length === 4) score += 5;
+    else if (p.content && p.content.length === 8) score += 8;
+    return score;
+  };
+
   poemImages[poem.id] = {
     poemId: poem.id,
     poem,
     specificImages: Array.from(specificImages),
     coreImages: Array.from(coreImages),
     lineImages,
+    fameScore: calcFameScore(poem),
   };
 
   // 统计意象
