@@ -790,39 +790,39 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
           // 如果点击的是具体节点，且细节层已展开，使用细节节点的 poemIds
           if (isDetailNode && isDetailExpanded && clickedNode.userData.poemIds && clickedNode.userData.poemIds.length > 0) {
             relatedPoems = clickedNode.userData.poemIds
-              .slice(0, 100) // 限制最多100首
               .map(id => {
                 const poemData = cooccurrenceData.poemImages[id];
                 return poemData ? { ...poemData.poem, fameScore: poemData.fameScore || 0 } : null;
               })
-              .filter(Boolean);
+              .filter(Boolean)
+              .sort((a, b) => b.fameScore - a.fameScore)
+              .slice(0, 100);
           } else if (isDetailNode) {
             // 点击细节节点但未展开时：使用 detail 节点自己的 poemIds（已预计算）
             if (clickedNode.userData.poemIds && clickedNode.userData.poemIds.length > 0) {
               relatedPoems = clickedNode.userData.poemIds
-                .slice(0, 100) // 限制最多100首
                 .map(id => {
                   const poemData = cooccurrenceData.poemImages[id];
                   return poemData ? { ...poemData.poem, fameScore: poemData.fameScore || 0 } : null;
                 })
-                .filter(Boolean);
+                .filter(Boolean)
+                .sort((a, b) => b.fameScore - a.fameScore)
+                .slice(0, 100);
             }
           } else {
             // 核心节点：使用 core 节点的 poemIds
             const stats = cooccurrenceData.imageStats[clickedNode.userData.id];
             if (stats && stats.poems && stats.poems.length > 0) {
               relatedPoems = stats.poems
-                .slice(0, 100) // 限制最多100首
                 .map(id => {
                   const poemData = cooccurrenceData.poemImages[id];
                   return poemData ? { ...poemData.poem, fameScore: poemData.fameScore || 0 } : null;
                 })
-                .filter(Boolean);
+                .filter(Boolean)
+                .sort((a, b) => b.fameScore - a.fameScore)
+                .slice(0, 100);
             }
           }
-
-          // 对诗歌按知名程度排序（使用预计算的 fameScore）
-          relatedPoems.sort((a, b) => b.fameScore - a.fameScore);
 
           // 计算相关意象（与当前意象共现的意象）
           const relatedImages = [];
