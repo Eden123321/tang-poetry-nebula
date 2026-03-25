@@ -704,38 +704,35 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
 
     // 先检测节点点击（优先）
     if (nodes.length > 0) {
-      // 获取所有可检测对象
-      const allObjects = [];
-      nodes.forEach(node => {
-        // 处理Group节点
+      // 先检测核心节点
+      const coreObjects = [];
+      nodesRef.current.forEach(node => {
         if (node.isGroup || node.traverse) {
-          // 检查是否是细节节点组
-          if (node.userData && node.userData.isDetail) {
-            // 细节节点组，找到不可见的检测Mesh
+          node.traverse(child => {
+            if (child.isMesh || child.isSprite) {
+              child.parentNode = node;
+              coreObjects.push(child);
+            }
+          });
+        }
+      });
+      let intersects = raycasterRef.current.intersectObjects(coreObjects);
+
+      // 如果没有命中核心节点，再检测展开的细节节点
+      if (intersects.length === 0 && expandedCore) {
+        const detailObjects = [];
+        detailNodesRef.current
+          .filter(node => node.userData.parentCore === expandedCore)
+          .forEach(node => {
             node.traverse(child => {
               if (child.isMesh && child.material.visible === false) {
                 child.parentNode = node;
-                allObjects.push(child);
+                detailObjects.push(child);
               }
             });
-          } else {
-            // 核心节点组，添加所有子对象
-            node.traverse(child => {
-              if (child.isMesh || child.isSprite) {
-                child.parentNode = node;
-                allObjects.push(child);
-              }
-            });
-          }
-        }
-        // 处理直接是Sprite或Mesh的节点
-        else if (node.isSprite || node.isMesh) {
-          node.parentNode = node;
-          allObjects.push(node);
-        }
-      });
-
-      const intersects = raycasterRef.current.intersectObjects(allObjects);
+          });
+        intersects = raycasterRef.current.intersectObjects(detailObjects);
+      }
       let clickedGroup = null;
       if (intersects.length > 0) {
         const hit = intersects[0].object;
