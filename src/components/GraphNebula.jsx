@@ -569,8 +569,14 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
         const distance = controls.target.distanceTo(target);
 
         if (distance > 0.5) {
-          // 始终使用平滑移动，不管距离远近
+          // 移动焦点到目标
           controls.target.lerp(target, 0.1);
+
+          // 调整相机距离，实现缩放效果
+          const direction = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
+          const targetDistance = 100; // 目标距离
+          const desiredCameraPos = target.clone().addScaledVector(direction, targetDistance);
+          camera.position.lerp(desiredCameraPos, 0.05);
         } else {
           // 到达目标位置，停止动画
           controls.target.copy(target);
