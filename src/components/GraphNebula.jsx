@@ -566,23 +566,13 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
       // 相机自动移动到目标位置（平滑动画，节点在画面中心）
       if (cameraTargetRef.current) {
         const target = cameraTargetRef.current;
-        const distance = camera.position.distanceTo(target);
-        const minDistance = 65; // 最小距离
+        const distance = controls.target.distanceTo(target);
 
-        if (distance > minDistance + 5) {
-          // 平滑移动controls.target到目标位置
-          controls.target.lerp(target, 0.08);
-
-          // 调整相机位置，保持在最小距离处
-          const direction = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
-          const newCameraPos = controls.target.clone().addScaledVector(direction, minDistance);
-          camera.position.lerp(newCameraPos, 0.08);
-        } else if (distance < minDistance - 5) {
-          // 相机太近了，后退
-          const direction = new THREE.Vector3().subVectors(camera.position, target).normalize();
-          camera.position.addScaledVector(direction, (minDistance - distance) * 0.1);
+        if (distance > 0.5) {
+          // 始终使用平滑移动，不管距离远近
+          controls.target.lerp(target, 0.1);
         } else {
-          // 到达目标距离，停止动画
+          // 到达目标位置，停止动画
           controls.target.copy(target);
           cameraTargetRef.current = null;
         }
