@@ -961,33 +961,23 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
         }
 
         if (clickedGroup && clickedGroup.userData) {
-          // 确定要跳转和要高亮的目标节点
+          // 确定要跳转的目标节点
           let targetNode = clickedGroup;
           if (clickedGroup.userData.isDetail && clickedGroup.userData.parentCore) {
             const parentCoreNode = nodesRef.current.find(n => n.userData.id === clickedGroup.userData.parentCore);
             if (parentCoreNode) {
               targetNode = parentCoreNode;
-              cameraTargetRef.current = parentCoreNode.position.clone();
-            } else {
-              cameraTargetRef.current = clickedGroup.position.clone();
-            }
-          } else {
-            cameraTargetRef.current = clickedGroup.position.clone();
-          }
-
-          // 恢复之前选中的节点颜色
-          if (selectedNodeRef.current) {
-            const prevCoreMesh = selectedNodeRef.current.children.find(c => c.isMesh && c.geometry.type === 'SphereGeometry' && c.geometry.parameters.radius < 10);
-            if (prevCoreMesh) {
-              prevCoreMesh.material.color.setStyle(selectedNodeRef.current.userData.color);
             }
           }
 
           // 高亮目标节点
-          const newCoreMesh = targetNode.children.find(c => c.isMesh && c.geometry.type === 'SphereGeometry' && c.geometry.parameters.radius < 10);
-          if (newCoreMesh) {
-            newCoreMesh.material.color.setHex(0xffffff);
+          const targetMesh = targetNode.children.find(c => c.isMesh && c.geometry && c.geometry.type === 'SphereGeometry' && c.geometry.parameters.radius < 10);
+          if (targetMesh) {
+            targetMesh.material.color.setHex(0xffffff);
           }
+
+          // 设置相机目标
+          cameraTargetRef.current = targetNode.position.clone();
           selectedNodeRef.current = targetNode;
         }
       }
