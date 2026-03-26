@@ -961,6 +961,20 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
         }
 
         if (clickedGroup && clickedGroup.userData) {
+          // 确定要跳转和要高亮的目标节点
+          let targetNode = clickedGroup;
+          if (clickedGroup.userData.isDetail && clickedGroup.userData.parentCore) {
+            const parentCoreNode = nodesRef.current.find(n => n.userData.id === clickedGroup.userData.parentCore);
+            if (parentCoreNode) {
+              targetNode = parentCoreNode;
+              cameraTargetRef.current = parentCoreNode.position.clone();
+            } else {
+              cameraTargetRef.current = clickedGroup.position.clone();
+            }
+          } else {
+            cameraTargetRef.current = clickedGroup.position.clone();
+          }
+
           // 恢复之前选中的节点颜色
           if (selectedNodeRef.current) {
             const prevCoreMesh = selectedNodeRef.current.children.find(c => c.isMesh && c.geometry.type === 'SphereGeometry' && c.geometry.parameters.radius < 10);
@@ -969,22 +983,12 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
             }
           }
 
-          // 高亮选中的节点
-          const newCoreMesh = clickedGroup.children.find(c => c.isMesh && c.geometry.type === 'SphereGeometry' && c.geometry.parameters.radius < 10);
+          // 高亮目标节点
+          const newCoreMesh = targetNode.children.find(c => c.isMesh && c.geometry.type === 'SphereGeometry' && c.geometry.parameters.radius < 10);
           if (newCoreMesh) {
             newCoreMesh.material.color.setHex(0xffffff);
           }
-          selectedNodeRef.current = clickedGroup;
-
-          // 设置相机目标位置（跳转）
-          if (clickedGroup.userData.isDetail && clickedGroup.userData.parentCore) {
-            const parentCoreNode = nodesRef.current.find(n => n.userData.id === clickedGroup.userData.parentCore);
-            if (parentCoreNode) {
-              cameraTargetRef.current = parentCoreNode.position.clone();
-            }
-          } else {
-            cameraTargetRef.current = clickedGroup.position.clone();
-          }
+          selectedNodeRef.current = targetNode;
         }
       }
     }
