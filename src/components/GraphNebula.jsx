@@ -591,7 +591,12 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
       // 双击后相机围绕目标节点缓慢旋转（相机到位后才开始）
       if (orbitTargetRef.current) {
         // 只有当相机移动到位后（cameraTargetRef为null）才开始旋转
-        if (!cameraTargetRef.current) {
+        if (!cameraTargetRef.current && !orbitStartedRef.current) {
+          // 计算相机相对于目标的当前角度，作为起始角度
+          const target = orbitTargetRef.current;
+          const dx = camera.position.x - target.x;
+          const dz = camera.position.z - target.z;
+          orbitAngleRef.current = Math.atan2(dz, dx);
           orbitStartedRef.current = true;
         }
 
@@ -603,7 +608,7 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
 
           // 计算围绕目标的新位置
           const x = target.x + radius * Math.cos(angle);
-          const y = target.y;
+          const y = camera.position.y; // 保持当前高度
           const z = target.z + radius * Math.sin(angle);
 
           camera.position.set(x, y, z);
