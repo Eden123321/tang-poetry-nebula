@@ -23,6 +23,8 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
   const selectedNodeRef = useRef(null);
   const cameraTargetRef = useRef(null); // 相机目标位置
   const dblClickFlagRef = useRef(false); // 防止双击后click干扰高亮
+  const orbitTargetRef = useRef(null); // 旋转目标节点
+  const orbitAngleRef = useRef(0); // 当前旋转角度
   const [hoveredNode, setHoveredNode] = useState(null);
   const [expandedCore, setExpandedCore] = useState(null);
   const detailNodesRef = useRef([]);
@@ -585,6 +587,22 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
         }
       }
 
+      // 双击后相机围绕目标节点缓慢旋转
+      if (orbitTargetRef.current) {
+        orbitAngleRef.current += 0.005; // 旋转速度
+        const angle = orbitAngleRef.current;
+        const radius = 100; // 旋转半径
+        const target = orbitTargetRef.current;
+
+        // 计算围绕目标的新位置
+        const x = target.x + radius * Math.cos(angle);
+        const y = target.y;
+        const z = target.z + radius * Math.sin(angle);
+
+        camera.position.set(x, y, z);
+        controls.target.copy(target);
+      }
+
       controls.update();
       renderer.render(scene, camera);
     };
@@ -987,6 +1005,9 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
           // 展开目标核心节点的细节层
           if (targetNode.userData.isCore) {
             toggleDetailLayer(targetNode);
+            // 设置旋转目标
+            orbitTargetRef.current = targetNode.position.clone();
+            orbitAngleRef.current = 0;
           }
 
           // 设置相机目标
