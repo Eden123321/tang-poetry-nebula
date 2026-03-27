@@ -983,13 +983,10 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
           }
           console.log('targetNode:', targetNode.userData.id, 'children:', targetNode.children.length);
 
-          // 高亮目标节点
+          // 高亮目标节点 - 参考 handleClick，用 opacity 0.8
           const sprite = targetNode.children.find(c => c.isSprite);
-          console.log('sprite found:', !!sprite, 'current color:', sprite?.material?.color?.getHexString());
           if (sprite) {
-            // 高亮：放大 scale
-            sprite.scale.set(sprite.scale.x * 1.5, sprite.scale.y * 1.5, 1);
-            console.log('set highlight by scale');
+            sprite.material.opacity = 0.8;
           }
 
           // 设置相机目标
