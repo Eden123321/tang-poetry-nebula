@@ -983,7 +983,8 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
           // 高亮目标节点 - 增强 sprite 的发光效果
           const sprite = targetNode.children.find(c => c.isSprite);
           if (sprite) {
-            sprite.material.opacity = 1.0; // 完全不透明
+            // 直接设置颜色为白色，增强发光效果
+            sprite.material.color.setHex(0xffffff);
           }
 
           // 设置相机目标
