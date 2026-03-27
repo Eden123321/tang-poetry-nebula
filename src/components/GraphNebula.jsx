@@ -601,7 +601,7 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
         }
 
         if (orbitStartedRef.current) {
-          orbitAngleRef.current += 0.002; // 非常缓慢的旋转速度
+          orbitAngleRef.current += 0.0005; // 非常缓慢的旋转速度
           const angle = orbitAngleRef.current;
           const radius = 100; // 旋转半径
           const target = orbitTargetRef.current;
