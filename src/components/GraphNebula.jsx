@@ -726,6 +726,7 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
 
     // 如果是双击后的残留click事件，跳过处理
     if (dblClickFlagRef.current) {
+      console.log('click skipped due to dblClickFlag');
       return;
     }
 
