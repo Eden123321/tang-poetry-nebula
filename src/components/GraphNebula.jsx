@@ -985,16 +985,19 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
 
           // 高亮目标节点 - 参考 handleClick，用 opacity 0.8
           const sprite = targetNode.children.find(c => c.isSprite);
+          console.log('sprite:', !!sprite, 'opacity before:', sprite?.material?.opacity);
           if (sprite) {
             // 先恢复之前的节点（如果有）
             if (selectedNodeRef.current && selectedNodeRef.current !== targetNode) {
               const prevSprite = selectedNodeRef.current.children.find(c => c.isSprite);
               if (prevSprite) {
                 prevSprite.material.opacity = 0.3; // 恢复原始透明度
+                console.log('restored prev');
               }
             }
             // 设置当前节点高亮
             sprite.material.opacity = 0.8;
+            console.log('set opacity to 0.8');
           }
 
           // 设置相机目标
