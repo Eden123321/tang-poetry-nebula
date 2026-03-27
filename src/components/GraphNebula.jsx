@@ -996,9 +996,10 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
           const sprite = targetNode.children.find(c => c.isSprite);
           console.log('sprite found:', !!sprite);
           if (sprite) {
-            // 高亮：直接设为白色
-            sprite.material.color.setHex(0xffffff);
-            console.log('set highlight color');
+            // 高亮：设为黄色以区别于白色（sprite初始是白色）
+            sprite.material.color.setHex(0xffff00);
+            sprite.material.opacity = 1.0;
+            console.log('set highlight color to yellow');
           }
 
           // 设置相机目标
