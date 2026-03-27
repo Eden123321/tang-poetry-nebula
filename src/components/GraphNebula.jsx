@@ -983,23 +983,13 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
           }
           console.log('targetNode:', targetNode.userData.id, 'children:', targetNode.children.length);
 
-          // 恢复之前选中的节点颜色
-          if (selectedNodeRef.current) {
-            const prevSprite = selectedNodeRef.current.children.find(c => c.isSprite);
-            if (prevSprite) {
-              prevSprite.material.color.setStyle(selectedNodeRef.current.userData.color || '#ffffff');
-              console.log('restored prev color');
-            }
-          }
-
-          // 高亮目标节点 - 恢复原始颜色后设置高亮
+          // 高亮目标节点
           const sprite = targetNode.children.find(c => c.isSprite);
-          console.log('sprite found:', !!sprite);
+          console.log('sprite found:', !!sprite, 'current color:', sprite?.material?.color?.getHexString());
           if (sprite) {
-            // 高亮：设为黄色以区别于白色（sprite初始是白色）
-            sprite.material.color.setHex(0xffff00);
-            sprite.material.opacity = 1.0;
-            console.log('set highlight color to yellow');
+            // 高亮：放大 scale
+            sprite.scale.set(sprite.scale.x * 1.5, sprite.scale.y * 1.5, 1);
+            console.log('set highlight by scale');
           }
 
           // 设置相机目标
