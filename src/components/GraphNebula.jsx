@@ -730,6 +730,8 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
       return;
     }
 
+    console.log('handleClick called');
+
     const rect = canvas.getBoundingClientRect();
     mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -817,6 +819,8 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
           // 只有当细节层已展开（expandedCore === 当前细节的父核心）时，才显示细节详情
           const isDetailNode = clickedNode.userData.isDetail;
           const isDetailExpanded = isDetailNode && expandedCore === clickedNode.userData.parentCore;
+          console.log('click detail node:', clickedNode.userData.id, 'isDetail:', isDetailNode, 'isDetailExpanded:', isDetailExpanded, 'expandedCore:', expandedCore, 'parentCore:', clickedNode.userData.parentCore);
+          console.log('poemIds:', clickedNode.userData.poemIds?.length);
 
           // 如果点击的是具体节点，且细节层已展开，使用细节节点的 poemIds
           if (isDetailNode && isDetailExpanded && clickedNode.userData.poemIds && clickedNode.userData.poemIds.length > 0) {
@@ -896,6 +900,7 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
           }
 
           if (onNodeClick) {
+            console.log('onNodeClick called, relatedPoems count:', relatedPoems.length);
             // 如果点击的是未展开的细节节点，使用父核心节点的 userData
             const nodeData = (isDetailNode && !isDetailExpanded)
               ? nodesRef.current.find(n => n.userData.id === clickedNode.userData.parentCore)?.userData || clickedNode.userData
@@ -1006,7 +1011,7 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
           console.log('dblclick hit node:', clickedGroup.userData.id);
           // 标记为双击，防止后续click干扰
           dblClickFlagRef.current = true;
-          setTimeout(() => { dblClickFlagRef.current = false; }, 100);
+          setTimeout(() => { dblClickFlagRef.current = false; }, 500); // 增加时间避免dblclick重复触发toggle
 
           // 确定要跳转的目标节点
           let targetNode = clickedGroup;
