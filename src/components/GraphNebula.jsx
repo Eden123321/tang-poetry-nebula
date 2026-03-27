@@ -752,10 +752,9 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
           });
         }
       });
-      let intersects = raycasterRef.current.intersectObjects(coreObjects);
-
-      // 如果没有命中核心节点，再检测展开的细节节点
-      if (intersects.length === 0 && expandedCore) {
+      // 先检测展开的细节节点（优先）
+      let intersects = [];
+      if (expandedCore) {
         const detailObjects = [];
         detailNodesRef.current
           .filter(node => node.userData.parentCore === expandedCore)
@@ -768,6 +767,11 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
             });
           });
         intersects = raycasterRef.current.intersectObjects(detailObjects);
+      }
+
+      // 如果没有命中细节节点，再检测核心节点
+      if (intersects.length === 0) {
+        intersects = raycasterRef.current.intersectObjects(coreObjects);
       }
       let clickedGroup = null;
       if (intersects.length > 0) {
