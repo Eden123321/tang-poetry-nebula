@@ -1006,7 +1006,7 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
           console.log('dblclick hit node:', clickedGroup.userData.id);
           // 标记为双击，防止后续click干扰
           dblClickFlagRef.current = true;
-          setTimeout(() => { dblClickFlagRef.current = false; }, 300);
+          setTimeout(() => { dblClickFlagRef.current = false; }, 100);
 
           // 确定要跳转的目标节点
           let targetNode = clickedGroup;
