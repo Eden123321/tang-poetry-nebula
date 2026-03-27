@@ -22,6 +22,7 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
   const linksRef = useRef([]);
   const selectedNodeRef = useRef(null);
   const cameraTargetRef = useRef(null); // 相机目标位置
+  const dblClickFlagRef = useRef(false); // 防止双击后click干扰高亮
   const [hoveredNode, setHoveredNode] = useState(null);
   const [expandedCore, setExpandedCore] = useState(null);
   const detailNodesRef = useRef([]);
@@ -692,6 +693,11 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
 
     if (!canvas || !camera) return;
 
+    // 如果是双击后的残留click事件，跳过处理
+    if (dblClickFlagRef.current) {
+      return;
+    }
+
     const rect = canvas.getBoundingClientRect();
     mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -961,6 +967,10 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
         }
 
         if (clickedGroup && clickedGroup.userData) {
+          // 标记为双击，防止后续click干扰
+          dblClickFlagRef.current = true;
+          setTimeout(() => { dblClickFlagRef.current = false; }, 300);
+
           // 确定要跳转的目标节点
           let targetNode = clickedGroup;
           if (clickedGroup.userData.isDetail && clickedGroup.userData.parentCore) {
