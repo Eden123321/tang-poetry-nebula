@@ -985,7 +985,7 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
 
           // 高亮目标节点 - 参考 handleClick，用 opacity 0.8
           const sprite = targetNode.children.find(c => c.isSprite);
-          console.log('sprite:', !!sprite, 'opacity before:', sprite?.material?.opacity);
+          console.log('sprite:', !!sprite, 'opacity before:', sprite?.material?.opacity, 'selectedNodeRef:', selectedNodeRef.current?.userData?.id);
           if (sprite) {
             // 先恢复之前的节点（如果有）
             if (selectedNodeRef.current && selectedNodeRef.current !== targetNode) {
