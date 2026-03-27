@@ -983,17 +983,28 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
           }
           console.log('targetNode:', targetNode.userData.id, 'children:', targetNode.children.length);
 
-          // 高亮目标节点 - 增强 sprite 的发光效果
+          // 恢复之前选中的节点颜色
+          if (selectedNodeRef.current) {
+            const prevSprite = selectedNodeRef.current.children.find(c => c.isSprite);
+            if (prevSprite) {
+              prevSprite.material.color.setStyle(selectedNodeRef.current.userData.color || '#ffffff');
+              console.log('restored prev color');
+            }
+          }
+
+          // 高亮目标节点 - 恢复原始颜色后设置高亮
           const sprite = targetNode.children.find(c => c.isSprite);
           console.log('sprite found:', !!sprite);
           if (sprite) {
-            // 直接设置颜色为白色，增强发光效果
+            // 高亮：直接设为白色
             sprite.material.color.setHex(0xffffff);
+            console.log('set highlight color');
           }
 
           // 设置相机目标
           cameraTargetRef.current = targetNode.position.clone();
           selectedNodeRef.current = targetNode;
+          console.log('done');
         }
       }
     }
