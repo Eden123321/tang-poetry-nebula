@@ -25,6 +25,7 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
   const dblClickFlagRef = useRef(false); // 防止双击后click干扰高亮
   const orbitTargetRef = useRef(null); // 旋转目标节点
   const orbitAngleRef = useRef(0); // 当前旋转角度
+  const orbitStartedRef = useRef(false); // 相机是否已到位，开始旋转
   const [hoveredNode, setHoveredNode] = useState(null);
   const [expandedCore, setExpandedCore] = useState(null);
   const detailNodesRef = useRef([]);
@@ -587,20 +588,27 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
         }
       }
 
-      // 双击后相机围绕目标节点缓慢旋转
+      // 双击后相机围绕目标节点缓慢旋转（相机到位后才开始）
       if (orbitTargetRef.current) {
-        orbitAngleRef.current += 0.005; // 旋转速度
-        const angle = orbitAngleRef.current;
-        const radius = 100; // 旋转半径
-        const target = orbitTargetRef.current;
+        // 只有当相机移动到位后（cameraTargetRef为null）才开始旋转
+        if (!cameraTargetRef.current) {
+          orbitStartedRef.current = true;
+        }
 
-        // 计算围绕目标的新位置
-        const x = target.x + radius * Math.cos(angle);
-        const y = target.y;
-        const z = target.z + radius * Math.sin(angle);
+        if (orbitStartedRef.current) {
+          orbitAngleRef.current += 0.002; // 非常缓慢的旋转速度
+          const angle = orbitAngleRef.current;
+          const radius = 100; // 旋转半径
+          const target = orbitTargetRef.current;
 
-        camera.position.set(x, y, z);
-        controls.target.copy(target);
+          // 计算围绕目标的新位置
+          const x = target.x + radius * Math.cos(angle);
+          const y = target.y;
+          const z = target.z + radius * Math.sin(angle);
+
+          camera.position.set(x, y, z);
+          controls.target.copy(target);
+        }
       }
 
       controls.update();
@@ -907,6 +915,9 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
         toggleDetailLayer(expandedCoreNode);
       }
     }
+    // 停止旋转
+    orbitTargetRef.current = null;
+    orbitStartedRef.current = false;
     // 关闭右侧面板
     if (onClosePanel) {
       onClosePanel();
@@ -1008,6 +1019,7 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
             // 设置旋转目标
             orbitTargetRef.current = targetNode.position.clone();
             orbitAngleRef.current = 0;
+            orbitStartedRef.current = false; // 等待相机到位后再开始旋转
           }
 
           // 设置相机目标
