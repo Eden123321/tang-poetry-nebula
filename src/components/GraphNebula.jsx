@@ -983,21 +983,24 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
           }
           console.log('targetNode:', targetNode.userData.id, 'children:', targetNode.children.length);
 
-          // 高亮目标节点 - 参考 handleClick，用 opacity 0.8
+          // 高亮目标节点 - 用 scale 放大来高亮
           const sprite = targetNode.children.find(c => c.isSprite);
-          console.log('sprite:', !!sprite, 'opacity before:', sprite?.material?.opacity, 'selectedNodeRef:', selectedNodeRef.current?.userData?.id);
+          console.log('sprite:', !!sprite, 'scale before:', sprite?.scale?.x, 'selectedNodeRef:', selectedNodeRef.current?.userData?.id);
           if (sprite) {
             // 先恢复之前的节点（如果有）
             if (selectedNodeRef.current && selectedNodeRef.current !== targetNode) {
               const prevSprite = selectedNodeRef.current.children.find(c => c.isSprite);
               if (prevSprite) {
-                prevSprite.material.opacity = 0.3; // 恢复原始透明度
-                console.log('restored prev');
+                // 恢复原始大小
+                const baseSize = 12 + (selectedNodeRef.current.userData.val / 60) * 68;
+                prevSprite.scale.set(baseSize, baseSize, 1);
+                console.log('restored prev scale');
               }
             }
-            // 设置当前节点高亮
-            sprite.material.opacity = 0.8;
-            console.log('set opacity to 0.8');
+            // 设置当前节点高亮 - 放大 1.5 倍
+            const newSize = sprite.scale.x * 1.5;
+            sprite.scale.set(newSize, newSize, 1);
+            console.log('set scale to', newSize);
           }
 
           // 设置相机目标
