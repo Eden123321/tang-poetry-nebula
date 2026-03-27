@@ -970,10 +970,10 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
             }
           }
 
-          // 高亮目标节点
-          const targetMesh = targetNode.children.find(c => c.isMesh && c.geometry && c.geometry.type === 'SphereGeometry' && c.geometry.parameters.radius < 10);
-          if (targetMesh) {
-            targetMesh.material.color.setHex(0xffffff);
+          // 高亮目标节点 - 增强 sprite 的发光效果
+          const sprite = targetNode.children.find(c => c.isSprite);
+          if (sprite) {
+            sprite.material.opacity = 1.0; // 完全不透明
           }
 
           // 设置相机目标
