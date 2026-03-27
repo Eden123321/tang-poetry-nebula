@@ -920,6 +920,7 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
     const camera = cameraRef.current;
     const nodes = [...nodesRef.current, ...detailNodesRef.current];
 
+    console.log('dblclick triggered', { canvas: !!canvas, camera: !!camera, nodes: nodes.length });
     if (!canvas || !camera) return;
 
     const rect = canvas.getBoundingClientRect();
@@ -967,6 +968,7 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
         }
 
         if (clickedGroup && clickedGroup.userData) {
+          console.log('dblclick hit node:', clickedGroup.userData.id);
           // 标记为双击，防止后续click干扰
           dblClickFlagRef.current = true;
           setTimeout(() => { dblClickFlagRef.current = false; }, 300);
@@ -979,9 +981,11 @@ const GraphNebula = ({ onNodeClick, onLineClick, onClosePanel }) => {
               targetNode = parentCoreNode;
             }
           }
+          console.log('targetNode:', targetNode.userData.id, 'children:', targetNode.children.length);
 
           // 高亮目标节点 - 增强 sprite 的发光效果
           const sprite = targetNode.children.find(c => c.isSprite);
+          console.log('sprite found:', !!sprite);
           if (sprite) {
             // 直接设置颜色为白色，增强发光效果
             sprite.material.color.setHex(0xffffff);
